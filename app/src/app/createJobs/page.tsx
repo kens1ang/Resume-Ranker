@@ -235,16 +235,9 @@ export default function CreateJobPage() {
       <AppHeader />
 
       <main className="flex-1 px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold flex items-center">
-            <FileText className="mr-2 h-6 w-6" />
-            Create New Job
-          </h1>
-        </div>
-
         <Card className="w-full max-w-4xl mx-auto">
           <CardHeader>
-            <CardTitle>Job Details</CardTitle>
+            <CardTitle>Create Job</CardTitle>
             <CardDescription>
               Fill in the details for the new job position
             </CardDescription>

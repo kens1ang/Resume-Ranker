@@ -19,39 +19,49 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { ChevronRight, Loader2 } from "lucide-react";
+import { Dashboard } from "@uppy/react";
+import Uppy from "@uppy/core";
+import { useToast } from "@/hooks/use-toast";
 import {
   getFirestore,
   collection,
+  addDoc,
+  serverTimestamp,
   getDocs,
   query,
   orderBy,
 } from "firebase/firestore";
 import { app } from "@/firebase/firebaseConfig";
-import { useToast } from "@/hooks/use-toast";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileUp, FileText, ChevronRight, UserRound } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-// Import Uppy properly with type information
-import Uppy from "@uppy/core";
-import { Dashboard } from "@uppy/react";
-import Tus from "@uppy/tus";
-// Import Uppy styles
+
+// Import Uppy CSS
 import "@uppy/core/dist/style.css";
 import "@uppy/dashboard/dist/style.css";
 
-// Job interface
+// Define Job interface
 interface Job {
   id: string;
   jobTitle: string;
-  requiredDegree: string;
-  preferredDegree: string;
-  requiredSkills: string[];
-  preferredSkills: string[];
-  responsibilities: string[];
-  additionalRequirements: string;
-  createdAt: any;
+  requiredDegree?: string;
+  preferredDegree?: string;
+  requiredSkills?: string[];
+  preferredSkills?: string[];
+  responsibilities?: string[];
+  additionalRequirements?: string;
+}
+
+// Define uploaded file interface
+interface UploadedFile {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  data: Blob;
+  meta: any;
 }
 
 export default function EvaluationPortal() {
@@ -60,6 +70,8 @@ export default function EvaluationPortal() {
   const [isLoading, setIsLoading] = useState(true);
   const [uppy, setUppy] = useState<Uppy | null>(null);
   const [activeTab, setActiveTab] = useState("job-selection");
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const db = getFirestore(app);
 
@@ -68,16 +80,22 @@ export default function EvaluationPortal() {
     async function fetchJobs() {
       try {
         const jobsCollection = collection(db, "jobs");
-        const jobsQuery = query(jobsCollection, orderBy("createdAt", "desc"));
-        const querySnapshot = await getDocs(jobsQuery);
+        const jobsSnapshot = await getDocs(
+          query(jobsCollection, orderBy("createdAt", "desc"))
+        );
 
-        const jobsData: Job[] = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data() as Omit<Job, "id">;
-          jobsData.push({
+        const jobsData = jobsSnapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
             id: doc.id,
-            ...data,
-          });
+            jobTitle: data.jobTitle,
+            requiredDegree: data.requiredDegree,
+            preferredDegree: data.preferredDegree,
+            requiredSkills: data.requiredSkills,
+            preferredSkills: data.preferredSkills,
+            responsibilities: data.responsibilities,
+            additionalRequirements: data.additionalRequirements,
+          };
         });
 
         setJobs(jobsData);
@@ -85,7 +103,7 @@ export default function EvaluationPortal() {
         console.error("Error fetching jobs:", error);
         toast({
           title: "Error",
-          description: "Failed to load jobs. Please try again.",
+          description: "Failed to fetch job listings",
           variant: "destructive",
         });
       } finally {
@@ -98,40 +116,39 @@ export default function EvaluationPortal() {
 
   // Initialize Uppy
   useEffect(() => {
-    // Only create Uppy instance if it doesn't exist
     if (!uppy) {
       const uppyInstance = new Uppy({
         id: "resumeUploader",
         restrictions: {
           maxNumberOfFiles: 10,
           maxFileSize: 10 * 1024 * 1024, // 10MB
-          allowedFileTypes: [
-            "application/pdf",
-            ".pdf",
-            ".doc",
-            ".docx",
-            "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          ],
+          allowedFileTypes: [".pdf", "application/pdf"],
         },
         autoProceed: false,
       });
 
-      // Add Tus plugin for uploads
-      uppyInstance.use(Tus, {
-        endpoint: "https://tusd.tusdemo.net/files/", // Change this to your actual endpoint
+      // Store files locally instead of uploading immediately
+      uppyInstance.on("file-added", (file) => {
+        console.log("File added:", file.name);
       });
 
-      // Handle successful uploads
       uppyInstance.on("complete", (result) => {
         if (result.successful && result.successful.length > 0) {
           toast({
-            title: "Upload Complete",
-            description: `Successfully uploaded ${result.successful.length} file(s)`,
+            title: "Files Ready",
+            description: `${result.successful.length} file(s) ready for processing`,
           });
 
-          // Here you could add code to save the file references to Firebase
-          // along with the job ID they're for
+          setUploadedFiles(
+            result.successful.map((file) => ({
+              id: file.id,
+              name: file.name,
+              type: file.type || "",
+              size: file.size,
+              data: file.data,
+              meta: file.meta || {},
+            }))
+          );
         }
       });
 
@@ -144,21 +161,13 @@ export default function EvaluationPortal() {
         uppy.close();
       }
     };
-  }, [toast]); // Dependencies
-
-  // Format degree text
-  const formatDegree = (degree: string) => {
-    if (!degree) return "None";
-    return degree.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-  };
+  }, [toast]);
 
   // Handle job selection
   const handleJobSelect = (jobId: string) => {
     const job = jobs.find((j) => j.id === jobId);
     if (job) {
       setSelectedJob(job);
-      // Automatically move to upload tab after selecting a job
-      setActiveTab("resume-upload");
 
       // If you want to add job metadata to uploads
       if (uppy) {
@@ -182,26 +191,172 @@ export default function EvaluationPortal() {
     }
   };
 
+  // Format degree for display
+  const formatDegree = (degree: string) => {
+    return degree.charAt(0).toUpperCase() + degree.slice(1);
+  };
+
+  // Process files and store in Firestore with NER integration
+  const processFiles = async () => {
+    if (!selectedJob) {
+      toast({
+        title: "Error",
+        description: "No job selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (uploadedFiles.length === 0) {
+      toast({
+        title: "Error",
+        description: "No files uploaded",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // Process each file
+      for (const file of uploadedFiles) {
+        try {
+          console.log(`Processing file: ${file.name}`);
+
+          // Create a FormData object to send to the FastAPI server
+          const formData = new FormData();
+          formData.append("file", new Blob([file.data]), file.name);
+
+          // Call the parse-resume endpoint to get both text and NER results
+          console.log("Sending file to API for parsing");
+          try {
+            const response = await fetch("http://localhost:8000/parse-resume", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (!response.ok) {
+              throw new Error(
+                `API response not OK: ${response.status} ${response.statusText}`
+              );
+            }
+
+            const result = await response.json();
+            console.log("Resume parsing successful:", result);
+
+            // Extract data from the API response
+            const extractedText = result.text || "";
+            const entityData = result.entity_data || {};
+
+            // Store in Firestore
+            console.log("Storing parsed resume in Firestore");
+
+            // Convert job title to a valid collection name
+            const getCollectionNameFromJobTitle = (
+              jobTitle: string
+            ): string => {
+              // Replace spaces with camelCase and remove special characters
+              const collectionName = jobTitle
+                .trim()
+                .replace(/[^\w\s]/gi, "") // Remove special characters
+                .replace(/\s+(\w)/g, (_, letter) => letter.toUpperCase()) // Convert to camelCase
+                .replace(/\s/g, ""); // Remove remaining spaces
+
+              // Ensure it starts with lowercase letter (Firestore convention)
+              return (
+                collectionName.charAt(0).toLowerCase() +
+                collectionName.slice(1) +
+                "Submissions"
+              );
+            };
+
+            const collectionName = getCollectionNameFromJobTitle(
+              selectedJob.jobTitle
+            );
+
+            // Store in a collection named after the job title
+            await addDoc(collection(db, collectionName), {
+              jobId: selectedJob.id,
+              jobTitle: selectedJob.jobTitle,
+              fileName: file.name,
+              fileType: file.type,
+              fileSize: file.size,
+              candidateName: file.meta?.name || "Unknown",
+              extractedText: extractedText,
+              entityData: entityData,
+              createdAt: serverTimestamp(),
+            });
+
+            // Success toast
+            toast({
+              title: "Success",
+              description: `Processed: ${file.name}`,
+            });
+          } catch (apiError) {
+            console.error(`API error for ${file.name}:`, apiError);
+          }
+        } catch (fileError) {
+          console.error(`Error processing file ${file.name}:`, fileError);
+          toast({
+            title: "Error",
+            description: `Failed to process: ${file.name}`,
+            variant: "destructive",
+          });
+        }
+      }
+
+      // Reset state after all files are processed
+      setUploadedFiles([]);
+
+      if (uppy) {
+        // Cancel any ongoing uploads
+        uppy.cancelAll();
+
+        // Remove all files from the dashboard
+        const fileIDs = uppy.getFiles().map((file) => file.id);
+        fileIDs.forEach((fileID) => {
+          uppy.removeFile(fileID);
+        });
+
+        // Optional: you can also set a new meta for the next batch
+        if (selectedJob) {
+          uppy.setMeta({
+            jobId: selectedJob.id,
+            jobTitle: selectedJob.jobTitle,
+          });
+        }
+      }
+
+      toast({
+        title: "Processing Complete",
+        description: `${uploadedFiles.length} file(s) processed`,
+      });
+    } catch (error) {
+      console.error("Error in file processing:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred during processing",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <div className="flex flex-col w-full">
       <AppHeader />
 
       <main className="flex-1 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold flex items-center">
-            <UserRound className="mr-2 h-6 w-6" />
-            Resume Evaluation Portal
-          </h1>
-        </div>
-
         <Card className="w-full max-w-5xl mx-auto">
           <CardHeader>
-            <CardTitle>Submit Resumes for Evaluation</CardTitle>
+            <CardTitle>Resume Evaluation Portal</CardTitle>
             <CardDescription>
               Select a job position and upload candidate resumes to evaluate
-              their fit
             </CardDescription>
           </CardHeader>
+
           <CardContent>
             <Tabs
               value={activeTab}
@@ -209,28 +364,20 @@ export default function EvaluationPortal() {
               className="w-full"
             >
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="job-selection">
-                  <span className="flex items-center">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Job Selection
-                  </span>
-                </TabsTrigger>
+                <TabsTrigger value="job-selection">Select Job</TabsTrigger>
                 <TabsTrigger value="resume-upload" disabled={!selectedJob}>
-                  <span className="flex items-center">
-                    <FileUp className="mr-2 h-4 w-4" />
-                    Resume Upload
-                  </span>
+                  Upload Resumes
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="job-selection" className="space-y-4 py-4">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">
-                      Select Job Position
-                    </label>
+                    <h3 className="text-lg font-medium">Select Job Position</h3>
                     {isLoading ? (
-                      <div className="h-10 w-full animate-pulse rounded-md bg-muted"></div>
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      </div>
                     ) : (
                       <Select
                         onValueChange={handleJobSelect}
@@ -271,22 +418,21 @@ export default function EvaluationPortal() {
                       <Separator />
 
                       <div className="space-y-2">
-                        <h4 className="text-sm font-medium">Required Skills</h4>
+                        <h4 className="font-medium">Required Skills</h4>
                         <div className="flex flex-wrap gap-2">
-                          {selectedJob.requiredSkills.map((skill, index) => (
-                            <Badge key={index} variant="outline">
-                              {skill}
-                            </Badge>
-                          ))}
+                          {selectedJob.requiredSkills &&
+                            selectedJob.requiredSkills.map((skill, index) => (
+                              <Badge key={index} variant="default">
+                                {skill}
+                              </Badge>
+                            ))}
                         </div>
                       </div>
 
                       {selectedJob.preferredSkills &&
                         selectedJob.preferredSkills.length > 0 && (
                           <div className="space-y-2">
-                            <h4 className="text-sm font-medium">
-                              Preferred Skills
-                            </h4>
+                            <h4 className="font-medium">Preferred Skills</h4>
                             <div className="flex flex-wrap gap-2">
                               {selectedJob.preferredSkills.map(
                                 (skill, index) => (
@@ -343,7 +489,7 @@ export default function EvaluationPortal() {
                           uppy={uppy}
                           proudlyDisplayPoweredByUppy={false}
                           showProgressDetails={true}
-                          note="Upload resumes in PDF or Word format (max 10MB per file)"
+                          note="Upload resumes in PDF format (max 10MB per file)"
                           width="100%"
                           height={450}
                           metaFields={[
@@ -354,6 +500,28 @@ export default function EvaluationPortal() {
                             },
                           ]}
                         />
+
+                        <div className="mt-6 flex justify-end">
+                          <Button
+                            onClick={processFiles}
+                            disabled={
+                              uploadedFiles.length === 0 || isProcessing
+                            }
+                            className="gap-2"
+                          >
+                            {isProcessing ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Processing Files...
+                              </>
+                            ) : (
+                              <>
+                                Process Files
+                                <ChevronRight className="ml-2 h-4 w-4" />
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -361,10 +529,11 @@ export default function EvaluationPortal() {
               </TabsContent>
             </Tabs>
           </CardContent>
-          <CardFooter className="justify-between border-t pt-4">
-            <p className="text-sm text-muted-foreground">
-              Files uploaded will be automatically evaluated against the
-              selected job requirements
+
+          <CardFooter className="justify-between border-t pt-4 text-xs text-muted-foreground">
+            <p>
+              Files are processed using FastAPI and your NER model before being
+              stored in Firestore
             </p>
           </CardFooter>
         </Card>
