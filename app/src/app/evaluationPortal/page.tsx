@@ -52,6 +52,7 @@ interface Job {
   preferredSkills?: string[];
   responsibilities?: string[];
   additionalRequirements?: string;
+  description?: string;
 }
 
 // Define uploaded file interface
@@ -142,9 +143,9 @@ export default function EvaluationPortal() {
           setUploadedFiles(
             result.successful.map((file) => ({
               id: file.id,
-              name: file.name,
+              name: file.name || "unnamed-file",
               type: file.type || "",
-              size: file.size,
+              size: file.size || 0,
               data: file.data,
               meta: file.meta || {},
             }))
@@ -158,7 +159,7 @@ export default function EvaluationPortal() {
     // Clean up Uppy instance on component unmount
     return () => {
       if (uppy) {
-        uppy.close();
+        uppy.cancelAll();
       }
     };
   }, [toast]);
@@ -228,6 +229,30 @@ export default function EvaluationPortal() {
           const formData = new FormData();
           formData.append("file", new Blob([file.data]), file.name);
 
+          if (selectedJob?.additionalRequirements) {
+            formData.append(
+              "job_description",
+              selectedJob.additionalRequirements
+            );
+          }
+
+          if (selectedJob) {
+            const jobRequirements = {
+              jobTitle: selectedJob.jobTitle,
+              requiredSkills: selectedJob.requiredSkills || [],
+              preferredSkills: selectedJob.preferredSkills || [],
+              requiredDegree: selectedJob.requiredDegree || "",
+              preferredDegree: selectedJob.preferredDegree || "",
+              responsibilities: selectedJob.responsibilities || [],
+              additionalRequirements: selectedJob.additionalRequirements || "",
+              description: selectedJob.description || "",
+            };
+            formData.append(
+              "job_requirements",
+              JSON.stringify(jobRequirements)
+            );
+          }
+
           // Call the parse-resume endpoint to get both text and NER results
           console.log("Sending file to API for parsing");
           try {
@@ -248,9 +273,26 @@ export default function EvaluationPortal() {
             // Extract data from the API response
             const extractedText = result.text || "";
             const entityData = result.entity_data || {};
+            const similarity = result.similarity || 0;
+            const similarityScores = result.similarity_scores || {
+              overall: similarity,
+              skills: 0,
+              education: 0,
+              job_title: 0,
+              responsibilities: 0,
+              experience: 0,
+            };
 
             // Store in Firestore
             console.log("Storing parsed resume in Firestore");
+            console.log("Overall similarity:", similarityScores.overall);
+            console.log("Skills similarity:", similarityScores.skills);
+            console.log("Education similarity:", similarityScores.education);
+            console.log("Job title similarity:", similarityScores.job_title);
+            console.log(
+              "Responsibilities similarity:",
+              similarityScores.responsibilities
+            );
 
             // Convert job title to a valid collection name
             const getCollectionNameFromJobTitle = (
@@ -285,13 +327,21 @@ export default function EvaluationPortal() {
               candidateName: file.meta?.name || "Unknown",
               extractedText: extractedText,
               entityData: entityData,
+              similarity: similarity,
+              similarityScores: similarityScores,
               createdAt: serverTimestamp(),
             });
 
             // Success toast
+            const overallPercent = (similarityScores.overall * 100).toFixed(1);
+            const skillsPercent = (similarityScores.skills * 100).toFixed(1);
+            const jobTitlePercent = (similarityScores.job_title * 100).toFixed(
+              1
+            );
+
             toast({
               title: "Success",
-              description: `Processed: ${file.name}`,
+              description: `Processed: ${file.name} (Overall: ${overallPercent}%, Skills: ${skillsPercent}%, Job Match: ${jobTitlePercent}%)`,
             });
           } catch (apiError) {
             console.error(`API error for ${file.name}:`, apiError);
