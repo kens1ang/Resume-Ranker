@@ -206,12 +206,8 @@ export function ResumeUpload({ selectedJob, onChangePosition, onComplete }: Resu
               );
             };
 
-            const collectionName = getCollectionNameFromJobTitle(
-              selectedJob.jobTitle
-            );
-
             // Store in a collection named after the job title
-            await addDoc(collection(db, collectionName), {
+            await addDoc(collection(db, "resumeSubmissions"), {
               jobId: selectedJob.id,
               jobTitle: selectedJob.jobTitle,
               fileName: file.name,

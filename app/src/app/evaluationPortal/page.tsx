@@ -34,6 +34,7 @@ export default function EvaluationPortal() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingResults, setIsLoadingResults] = useState(false);
   const [activeTab, setActiveTab] = useState("job-selection");
   const [hasResults, setHasResults] = useState(false);
   const { toast } = useToast();
@@ -77,7 +78,6 @@ export default function EvaluationPortal() {
     fetchJobs();
   }, [db, toast]);
 
-  // Effect to check if results exist for the selected job
   useEffect(() => {
     async function checkForResults() {
       if (!selectedJob) {
@@ -85,24 +85,9 @@ export default function EvaluationPortal() {
         return;
       }
 
+      setIsLoadingResults(true);
       try {
-        const getCollectionNameFromJobTitle = (jobTitle: string): string => {
-          const collectionName = jobTitle
-            .trim()
-            .replace(/[^\w\s]/gi, "")
-            .replace(/\s+(\w)/g, (_, letter) => letter.toUpperCase())
-            .replace(/\s/g, "");
-          
-          return (
-            collectionName.charAt(0).toLowerCase() +
-            collectionName.slice(1) +
-            "Submissions"
-          );
-        };
-
-        const collectionName = getCollectionNameFromJobTitle(selectedJob.jobTitle);
-        
-        const resultsCollection = collection(db, collectionName);
+        const resultsCollection = collection(db, "resumeSubmissions");
         const resultsQuery = query(
           resultsCollection,
           where("jobId", "==", selectedJob.id),
@@ -113,7 +98,15 @@ export default function EvaluationPortal() {
         setHasResults(!resultsSnapshot.empty);
       } catch (error) {
         console.error("Error checking for results:", error);
+        toast({
+          title: "Error Checking Results",
+          description:
+            "Could not determine if results exist for this job position.",
+          variant: "destructive",
+        });
         setHasResults(false);
+      } finally {
+        setIsLoadingResults(false);
       }
     }
 
@@ -185,6 +178,7 @@ export default function EvaluationPortal() {
               <EvalResult
                 selectedJob={selectedJob}
                 onChangePosition={() => setActiveTab("job-selection")}
+                isLoading={isLoadingResults}
               />
             )}
           </TabsContent>
