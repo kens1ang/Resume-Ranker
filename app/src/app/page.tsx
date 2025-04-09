@@ -58,7 +58,7 @@ const allFiles = [
     name: "Jobs",
     type: "folder",
     date: "May 15, 2023",
-    icon: "/images/suitcase.png",
+    icon: "/images/folder.png",
     path: "/jobsTable",
   },
 ];

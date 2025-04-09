@@ -208,7 +208,7 @@ def format_for_matching(data, data_type="resume"):
         all_requirements = []
         for field in ["requiredSkills", "preferredSkills", "requiredDegree", 
                       "preferredDegree", "responsibilities", "jobTitle", 
-                      "additionalRequirements", "description"]:
+                      "description"]:
             if field in data and data[field]:
                 value = data[field]
                 if isinstance(value, list):
@@ -288,7 +288,6 @@ async def parse_resume(
             "education": 0.0, 
             "job_title": 0.0, 
             "responsibilities": 0.0,
-            "experience": 0.0
         }        
 
         logger.info("Starting similarity calculation")
