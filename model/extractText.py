@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import tempfile
 import shutil
 from pathlib import Path
@@ -12,7 +13,7 @@ import sys
 import logging
 from sentence_transformers import SentenceTransformer, util  
 from typing import Optional
-import requests  # New: for querying Wikidata
+import requests  
 
 # Configure logging
 logging.basicConfig(
@@ -27,7 +28,7 @@ app = FastAPI()
 # Configure CORS for your Next.js app
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -37,6 +38,10 @@ app.add_middleware(
 script_dir = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(script_dir, "NER-model")
 logger.info(f"Looking for NER model at: {model_path}")
+
+class ExplanationRequest(BaseModel):
+    entity_data: dict
+    job_requirements: dict
 
 # Load your NER model
 try:

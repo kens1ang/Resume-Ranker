@@ -1,21 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import React, {
+  useState,
+  useEffect,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { X, Plus } from "lucide-react";
+
+export interface ResponsibilitiesSectionRef {
+  resetInput: () => void;
+  addPendingResponsibility: () => void;
+}
 
 interface ResponsibilitiesSectionProps {
   responsibilities: string[];
   setResponsibilities: (responsibilities: string[]) => void;
 }
 
-export function ResponsibilitiesSection({
-  responsibilities,
-  setResponsibilities,
-}: ResponsibilitiesSectionProps) {
+export const ResponsibilitiesSection = forwardRef<
+  ResponsibilitiesSectionRef, 
+  ResponsibilitiesSectionProps
+>(({ responsibilities, setResponsibilities }, ref) => {
   const [newResponsibility, setNewResponsibility] = useState("");
+
+  useImperativeHandle(ref, () => ({
+    resetInput: () => {
+      setNewResponsibility(""); // Clear the input field
+    },
+    addPendingResponsibility: () => {
+      if (newResponsibility.trim() !== "") {
+        setResponsibilities([...responsibilities, newResponsibility.trim()]);
+        setNewResponsibility("");
+      }
+    },
+  }));
+
+  useEffect(() => {
+    if (responsibilities.length === 0) {
+      setNewResponsibility("");
+    }
+  }, [responsibilities]);
 
   // Add a responsibility when Enter is pressed
   const handleResponsibilityKeyDown = (
@@ -98,4 +126,4 @@ export function ResponsibilitiesSection({
       </div>
     </div>
   );
-}
+});

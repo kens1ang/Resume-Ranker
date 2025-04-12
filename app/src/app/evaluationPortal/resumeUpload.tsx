@@ -187,6 +187,14 @@ export function ResumeUpload({ selectedJob, onChangePosition, onComplete }: Resu
             console.log("Storing parsed resume in Firestore");
             console.log("Overall similarity:", similarityScores.overall);
 
+            const resultWithFile = {
+              ...result,
+              resumeFile: {
+                name: file.name,
+                data: file.data, // This is the base64 data
+              }
+            };
+
             // Convert job title to a valid collection name
             const getCollectionNameFromJobTitle = (
               jobTitle: string

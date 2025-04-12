@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   getFirestore,
   collection,
@@ -14,7 +14,10 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { EducationSection } from "./education";
 import { SkillsSection } from "./skills";
-import { ResponsibilitiesSection } from "./responsibilities";
+import {
+  ResponsibilitiesSection,
+  ResponsibilitiesSectionRef,
+} from "./responsibilities";
 import { JobInfoSection } from "./jobInfo";
 import { Save, Loader2 } from "lucide-react";
 
@@ -22,6 +25,7 @@ import { Save, Loader2 } from "lucide-react";
 interface Degree {
   level: string;
   degreeType: string;
+  field?: string;
 }
 
 export default function CreateJobPage() {
@@ -37,14 +41,14 @@ export default function CreateJobPage() {
   });
 
   // Education requirements
-  const [requiredDegree, setRequiredDegree] = useState<Degree | null>(null);
   const [preferredDegrees, setPreferredDegrees] = useState<Degree[]>([]);
-  const [selectedFields, setSelectedFields] = useState<string[]>([]);
 
   // Skills and responsibilities as separate arrays for tag-based input
   const [requiredSkills, setRequiredSkills] = useState<string[]>([]);
   const [preferredSkills, setPreferredSkills] = useState<string[]>([]);
   const [responsibilities, setResponsibilities] = useState<string[]>([]);
+
+  const responsibilitiesRef = useRef<ResponsibilitiesSectionRef>(null);
 
   // This ensures hydration happens safely
   useEffect(() => {
@@ -66,24 +70,6 @@ export default function CreateJobPage() {
       toast({
         title: "Validation Error",
         description: "Job title is required",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    if (!requiredDegree) {
-      toast({
-        title: "Validation Error",
-        description: "Required degree qualification is needed",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    if (selectedFields.length === 0) {
-      toast({
-        title: "Validation Error",
-        description: "At least one field of study is required",
         variant: "destructive",
       });
       return false;
@@ -114,16 +100,25 @@ export default function CreateJobPage() {
     setFormData({
       jobTitle: "",
     });
-    setRequiredDegree(null);
     setPreferredDegrees([]);
-    setSelectedFields([]);
     setRequiredSkills([]);
     setPreferredSkills([]);
     setResponsibilities([]);
+    if (responsibilitiesRef.current?.resetInput) {
+      responsibilitiesRef.current.resetInput();
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Add any pending responsibility before validation
+    if (responsibilitiesRef.current) {
+      responsibilitiesRef.current.addPendingResponsibility();
+
+      // Need a small delay to ensure state updates before validation
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
 
     if (!validateForm()) {
       return;
@@ -132,25 +127,21 @@ export default function CreateJobPage() {
     setIsSubmitting(true);
 
     try {
-      const formattedRequiredDegree = requiredDegree
-        ? `${requiredDegree.degreeType} in ${selectedFields.join(", ")}`
-        : "";
-
       const formattedPreferredDegrees =
         preferredDegrees.length > 0
           ? preferredDegrees
-              .map((deg) => `${deg.degreeType} in ${selectedFields.join(", ")}`)
+              .map((deg) => `${deg.degreeType} in ${deg.field || ""}`)
               .join("; ")
           : "";
 
+      const allResponsibilities = [...responsibilities];
+
       const jobData = {
         jobTitle: formData.jobTitle,
-        requiredDegree: formattedRequiredDegree,
         preferredDegree: formattedPreferredDegrees,
-        selectedFields: selectedFields,
         requiredSkills,
         preferredSkills,
-        responsibilities,
+        responsibilities: allResponsibilities,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -235,14 +226,12 @@ export default function CreateJobPage() {
               jobTitle={formData.jobTitle}
               onJobTitleChange={handleInputChange}
             />
-            
+
             <Separator />
 
             <div>
               <EducationSection
-                requiredDegree={requiredDegree}
                 preferredDegrees={preferredDegrees}
-                setRequiredDegree={setRequiredDegree}
                 setPreferredDegrees={setPreferredDegrees}
               />
             </div>
@@ -257,11 +246,12 @@ export default function CreateJobPage() {
                 setPreferredSkills={setPreferredSkills}
               />
             </div>
-            
+
             <Separator />
 
             <div className="flex flex-col">
               <ResponsibilitiesSection
+                ref={responsibilitiesRef}
                 responsibilities={responsibilities}
                 setResponsibilities={setResponsibilities}
               />

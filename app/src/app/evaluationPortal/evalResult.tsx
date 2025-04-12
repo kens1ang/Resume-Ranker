@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { generateInstitutionSummary } from "@/lib/openrouter";
 
 interface Job {
   id: string;
@@ -62,6 +63,10 @@ interface ResumeResult {
     [key: string]: string[];
   };
   createdAt: any;
+  resumeFile?: {
+    name: string;
+    data: string | Blob;
+  };
 }
 
 interface EvalResultProps {
@@ -75,6 +80,12 @@ export function EvalResult({
   onChangePosition,
   isLoading: externalLoading,
 }: EvalResultProps) {
+  const [institutionSummaries, setInstitutionSummaries] = useState<
+    Record<string, string>
+  >({});
+  const [loadingInstitutions, setLoadingInstitutions] = useState<
+    Record<string, boolean>
+  >({});
   const [results, setResults] = useState<ResumeResult[]>([]);
   const [internalLoading, setInternalLoading] = useState(true);
   const isLoading =
@@ -205,6 +216,40 @@ export function EvalResult({
     if (score >= 0.7) return "text-green-600";
     if (score >= 0.5) return "text-yellow-600";
     return "text-red-600";
+  };
+
+  // Add this function inside your EvalResult component
+  const fetchInstitutionSummary = async (
+    resultId: string,
+    institutionName: string
+  ) => {
+    // Skip if we already have this summary
+    if (institutionSummaries[`${resultId}-${institutionName}`]) return;
+
+    // Set loading state
+    setLoadingInstitutions((prev) => ({
+      ...prev,
+      [`${resultId}-${institutionName}`]: true,
+    }));
+
+    try {
+      const summary = await generateInstitutionSummary(institutionName);
+
+      // Store the summary
+      setInstitutionSummaries((prev) => ({
+        ...prev,
+        [`${resultId}-${institutionName}`]: summary,
+      }));
+    } catch (error) {
+      console.error("Error fetching institution summary:", error);
+      // Handle error if needed
+    } finally {
+      // Clear loading state
+      setLoadingInstitutions((prev) => ({
+        ...prev,
+        [`${resultId}-${institutionName}`]: false,
+      }));
+    }
   };
 
   return (
@@ -454,11 +499,56 @@ export function EvalResult({
                                   0 &&
                                   result.entityData["College Name"].map(
                                     (college, index) => (
-                                      <div key={index} className="text-sm">
-                                        <Badge className="mr-2 bg-purple-100 text-purple-800 hover:bg-purple-100">
-                                          Institution
-                                        </Badge>
-                                        {college}
+                                      <div key={index} className="text-sm mb-3">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
+                                            Institution
+                                          </Badge>
+                                          {college}
+                                        </div>
+
+                                        {/* Institution Summary Section */}
+                                        <div className="mt-1 pl-2 border-l-2 border-purple-200">
+                                          {institutionSummaries[
+                                            `${result.id}-${college}`
+                                          ] ? (
+                                            <p className="text-xs text-muted-foreground">
+                                              {
+                                                institutionSummaries[
+                                                  `${result.id}-${college}`
+                                                ]
+                                              }
+                                            </p>
+                                          ) : (
+                                            <div>
+                                              {loadingInstitutions[
+                                                `${result.id}-${college}`
+                                              ] ? (
+                                                <div className="flex items-center gap-2 py-1">
+                                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                                  <span className="text-xs text-muted-foreground">
+                                                    Loading institution
+                                                    profile...
+                                                  </span>
+                                                </div>
+                                              ) : (
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  className="text-xs h-6 px-2 mt-1"
+                                                  onClick={() =>
+                                                    fetchInstitutionSummary(
+                                                      result.id,
+                                                      college
+                                                    )
+                                                  }
+                                                >
+                                                  Load institution information
+                                                </Button>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     )
                                   )}

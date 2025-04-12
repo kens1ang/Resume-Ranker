@@ -4,14 +4,12 @@ import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Combobox } from "@/components/ui/combobox";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { X, ChevronDown } from "lucide-react";
 import educationData from "./education.json";
@@ -24,16 +22,12 @@ interface Degree {
 }
 
 interface EducationSectionProps {
-  requiredDegree: Degree | null;
   preferredDegrees: Degree[];
-  setRequiredDegree: (degree: Degree | null) => void;
   setPreferredDegrees: (degrees: Degree[]) => void;
 }
 
 export function EducationSection({
-  requiredDegree,
   preferredDegrees,
-  setRequiredDegree,
   setPreferredDegrees,
 }: EducationSectionProps) {
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
@@ -70,31 +64,6 @@ export function EducationSection({
     value: field,
     label: field,
   }));
-
-  // Handle selecting the required degree level and type
-  const handleRequiredDegreeSelect = (level: string, degreeType: string) => {
-    setSelectedLevel(level);
-    setSelectedDegreeType(degreeType);
-
-    setRequiredDegree({
-      level,
-      degreeType,
-      field: selectedField || undefined,
-    });
-  };
-
-  // Handle selecting field for required degree
-  const handleRequiredFieldSelect = (field: string) => {
-    setSelectedField(field);
-
-    if (selectedLevel && selectedDegreeType) {
-      setRequiredDegree({
-        level: selectedLevel,
-        degreeType: selectedDegreeType,
-        field,
-      });
-    }
-  };
 
   // Handle selecting preferred degrees
   const handlePreferredDegreeSelect = (
@@ -141,14 +110,19 @@ export function EducationSection({
     setPreferredDegrees(preferredDegrees.filter((_, i) => i !== index));
   };
 
-  // Add current selection as preferred degree
-  const addAsPreferred = () => {
+  const addDegree = () => {
     if (selectedLevel && selectedDegreeType && selectedField) {
-      handlePreferredDegreeSelect(
-        selectedLevel,
-        selectedDegreeType,
-        selectedField
-      );
+      setPreferredDegrees([
+        ...preferredDegrees,
+        {
+          level: selectedLevel,
+          degreeType: selectedDegreeType,
+          field: selectedField, // Make sure this is being set
+        },
+      ]);
+      // Reset selection states
+      setSelectedLevel(null);
+      setSelectedDegreeType(null);
       setSelectedField(null);
     }
   };
@@ -257,7 +231,7 @@ export function EducationSection({
                 disabled={
                   !selectedLevel || !selectedDegreeType || !selectedField
                 }
-                onClick={addAsPreferred}
+                onClick={addDegree}
               >
                 Add Preferred Qualification
               </Button>
