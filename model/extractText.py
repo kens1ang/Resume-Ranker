@@ -134,13 +134,13 @@ def format_for_matching(data, data_type="resume"):
             formatted["skills"] = ", ".join(data["Skills"])
             logger.info(f"Resume skills formatted: {formatted['skills'][:100]}...")
         
-        if "Degree" in data or "College Name" in data:
-            education = []
-            if "Degree" in data:
-                education.extend(data["Degree"])
-            if "College Name" in data:
-                education.extend(data["College Name"])
-            formatted["education"] = ", ".join(education)
+        education_parts = []
+        if "Degree" in data:
+            education_parts.extend(data["Degree"])
+        if "Institution Name" in data:
+            education_parts.extend(data["Institution Name"])
+        if education_parts:
+            formatted["education"] = ", ".join(education_parts)
             logger.info(f"Resume education formatted: {formatted['education'][:100] if 'education' in formatted else 'None'}")
         
         if "Job title" in data:
@@ -151,6 +151,10 @@ def format_for_matching(data, data_type="resume"):
             formatted["responsibilities"] = ", ".join(data["Responsibilities"])
             logger.info(f"Resume responsibilities formatted: {formatted['responsibilities'][:100] if 'responsibilities' in formatted else 'None'}")
         
+        if "Certifications" in data:
+            formatted["certifications"] = ", ".join(data["Certifications"])
+            logger.info(f"Resume certifications formatted: {formatted['certifications'][:100] if 'certifications' in formatted else 'None'}")
+
         # Combine everything into an "all" field
         all_entities = []
         for category, values in data.items():
@@ -416,7 +420,7 @@ async def parse_resume(
                 },
                 "education_match": {
                     "score": similarity_scores["education"],
-                    "resume_education": entity_data.get("Degree", []) + entity_data.get("College Name", []),
+                    "resume_education": entity_data.get("Degree", []) + entity_data.get("Institution Name", []),
                     "job_education": [job_req_data.get("requiredDegree", ""), job_req_data.get("preferredDegree", "")] if job_requirements else []
                 },
                 "job_title_match": {
@@ -428,7 +432,8 @@ async def parse_resume(
                     "score": similarity_scores["responsibilities"],
                     "resume_responsibilities": entity_data.get("Responsibilities", []),
                     "job_responsibilities": job_req_data.get("responsibilities", []) if job_requirements else []
-                }
+                },
+                "certifications": entity_data.get("Certifications", []) 
             }
         }
         

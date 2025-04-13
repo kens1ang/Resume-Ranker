@@ -495,34 +495,34 @@ export function EvalResult({
                                     No education identified
                                   </span>
                                 )}
-                                {result.entityData?.["College Name"]?.length >
-                                  0 &&
-                                  result.entityData["College Name"].map(
-                                    (college, index) => (
+                                {result.entityData?.["Institution Name"]
+                                  ?.length > 0 &&
+                                  result.entityData["Institution Name"].map(
+                                    (institution, index) => (
                                       <div key={index} className="text-sm mb-3">
                                         <div className="flex items-center gap-2 mb-1">
                                           <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
                                             Institution
                                           </Badge>
-                                          {college}
+                                          {institution}
                                         </div>
 
                                         {/* Institution Summary Section */}
                                         <div className="mt-1 pl-2 border-l-2 border-purple-200">
                                           {institutionSummaries[
-                                            `${result.id}-${college}`
+                                            `${result.id}-${institution}`
                                           ] ? (
                                             <p className="text-xs text-muted-foreground">
                                               {
                                                 institutionSummaries[
-                                                  `${result.id}-${college}`
+                                                  `${result.id}-${institution}`
                                                 ]
                                               }
                                             </p>
                                           ) : (
                                             <div>
                                               {loadingInstitutions[
-                                                `${result.id}-${college}`
+                                                `${result.id}-${institution}`
                                               ] ? (
                                                 <div className="flex items-center gap-2 py-1">
                                                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -539,7 +539,7 @@ export function EvalResult({
                                                   onClick={() =>
                                                     fetchInstitutionSummary(
                                                       result.id,
-                                                      college
+                                                      institution
                                                     )
                                                   }
                                                 >
@@ -552,6 +552,29 @@ export function EvalResult({
                                       </div>
                                     )
                                   )}
+                              </div>
+
+                              <h4 className="font-semibold mt-4 mb-2">
+                                Identified Certifications
+                              </h4>
+                              <div className="flex flex-col gap-2">
+                                {result.entityData?.Certifications?.length >
+                                0 ? (
+                                  result.entityData.Certifications.map(
+                                    (cert, index) => (
+                                      <div key={index} className="text-sm">
+                                        <Badge className="mr-2 bg-indigo-100 text-indigo-800 hover:bg-indigo-100">
+                                          Certification
+                                        </Badge>
+                                        {cert}
+                                      </div>
+                                    )
+                                  )
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">
+                                    No certifications identified
+                                  </span>
+                                )}
                               </div>
                             </div>
 
