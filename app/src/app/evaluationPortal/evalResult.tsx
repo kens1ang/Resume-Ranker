@@ -36,12 +36,10 @@ import { generateInstitutionSummary } from "@/lib/openrouter";
 interface Job {
   id: string;
   jobTitle: string;
-  requiredDegree?: string;
   preferredDegree?: string;
   requiredSkills?: string[];
   preferredSkills?: string[];
   responsibilities?: string[];
-  additionalRequirements?: string;
   description?: string;
 }
 
@@ -95,6 +93,9 @@ export function EvalResult({
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const db = getFirestore(app);
+  const [expandedResponsibilities, setExpandedResponsibilities] = useState<
+    Record<string, boolean>
+  >({});
 
   useEffect(() => {
     async function fetchResults() {
@@ -172,6 +173,13 @@ export function EvalResult({
 
   const toggleRowExpand = (id: string) => {
     setExpandedRows((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  const toggleResponsibilitiesView = (id: string) => {
+    setExpandedResponsibilities((prev) => ({
       ...prev,
       [id]: !prev[id],
     }));
@@ -370,10 +378,10 @@ export function EvalResult({
                   </TableHead>
                   <TableHead
                     className="cursor-pointer hidden lg:table-cell"
-                    onClick={() => toggleSort("job_title")}
+                    onClick={() => toggleSort("responsibilities")}
                   >
                     <div className="flex items-center">
-                      Job Title
+                      Experience
                       <ArrowUpDown className="ml-2 h-4 w-4" />
                     </div>
                   </TableHead>
@@ -428,10 +436,12 @@ export function EvalResult({
                       <TableCell className="hidden lg:table-cell">
                         <div
                           className={`font-medium ${getScoreColor(
-                            result.similarityScores.job_title
+                            result.similarityScores.responsibilities
                           )}`}
                         >
-                          {formatPercentage(result.similarityScores.job_title)}
+                          {formatPercentage(
+                            result.similarityScores.responsibilities
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -579,25 +589,33 @@ export function EvalResult({
                             </div>
 
                             <div>
-                              <h4 className="font-semibold mb-2">
-                                Identified Job Titles
+                              <h4 className="font-semibold mt-4 mb-2">
+                                Identified Responsibilities
+                                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                  (
+                                  {result.entityData?.Responsibilities
+                                    ?.length || 0}{" "}
+                                  found)
+                                </span>
                               </h4>
-                              <div className="flex flex-col gap-2">
-                                {result.entityData?.["Job title"]?.length >
+                              <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto bg-white p-3 rounded-md border">
+                                {result.entityData?.Responsibilities?.length >
                                 0 ? (
-                                  result.entityData["Job title"].map(
-                                    (title, index) => (
-                                      <div key={index} className="text-sm">
-                                        <Badge className="mr-2 bg-green-100 text-green-800 hover:bg-green-100">
-                                          Title
-                                        </Badge>
-                                        {title}
-                                      </div>
-                                    )
-                                  )
+                                  <ol className="list-decimal pl-5 space-y-2">
+                                    {result.entityData.Responsibilities.map(
+                                      (resp, index) => (
+                                        <li
+                                          key={index}
+                                          className="text-sm text-gray-800"
+                                        >
+                                          <span>{resp}</span>
+                                        </li>
+                                      )
+                                    )}
+                                  </ol>
                                 ) : (
                                   <span className="text-sm text-muted-foreground">
-                                    No job titles identified
+                                    No responsibilities identified
                                   </span>
                                 )}
                               </div>
