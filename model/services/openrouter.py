@@ -3,8 +3,11 @@ import json
 import asyncio
 import aiohttp
 from utils.logging import setup_logger
+from dotenv import load_dotenv
 
 logger = setup_logger("openrouter-service")
+
+load_dotenv()
 
 async def extract_responsibilities(resume_text: str) -> list:
     """
@@ -19,8 +22,11 @@ async def extract_responsibilities(resume_text: str) -> list:
     try:
         # Get API key from environment variable
         api_key = os.environ.get("OPENROUTER_API_KEY")
+        logger.info(f"API key found: {'Yes' if api_key else 'No'}")
+
         if not api_key:
             logger.error("OPENROUTER_API_KEY environment variable not set")
+            logger.info(f"Current directory: {os.getcwd()}")
             return []
             
         # OpenRouter API endpoint
@@ -28,14 +34,39 @@ async def extract_responsibilities(resume_text: str) -> list:
         
         # Prepare the prompt for extracting responsibilities
         prompt = f"""
-        Extract a list of professional responsibilities from the following resume text. 
-        Focus on action verbs and job duties. Ignore skills, education, or other information.
-        Format your response as a JSON array of strings, with each string being a distinct responsibility.
-        Only include the JSON array, nothing else.
+Extract professional responsibilities and achievements from the following resume.
+
+Focus on:
+1. Action-oriented statements beginning with strong verbs (e.g., "Developed", "Managed", "Implemented")
+2. Quantifiable achievements and metrics where available (e.g., "Increased efficiency by 30%")
+3. Technical responsibilities related to specific tools, technologies, or methodologies
+4. Project management and team leadership experiences
+5. Client or stakeholder interactions
+
+FORMAT REQUIREMENTS:
+- Return ONLY a JSON array of strings
+- Each responsibility should be a complete, standalone statement
+- Focus on the most recent and relevant 10-15 responsibilities
+- Prioritize responsibilities that demonstrate technical skills, leadership, or measurable impact
+- Ensure each statement is specific and descriptive (avoid vague statements)
+
+Resume text:
+{resume_text[:4000]}
+"""
         
-        Resume:
-        {resume_text[:4000]}  # Limit text length to avoid token limits
-        """
+        system_content = """You are an expert resume analyzer specialized in extracting high-quality professional responsibilities from resumes for job matching purposes.
+
+Your task is to identify responsibilities that would be most relevant for matching with job descriptions. Focus on extracting concrete accomplishments, technical skills in action, and leadership experiences.
+
+When analyzing resumes:
+1. Prioritize recent experience over older positions
+2. Emphasize specific, measurable achievements over generic duties 
+3. Highlight technical skills being applied in real scenarios
+4. Include domain-specific knowledge demonstrations
+5. Identify transferable skills across industries
+
+Return ONLY the JSON array with no additional text, explanations, or markdown formatting.
+"""
         
         # Prepare the request payload
         payload = {
@@ -43,7 +74,7 @@ async def extract_responsibilities(resume_text: str) -> list:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are an AI assistant that extracts job responsibilities from resume text. Respond only with extracted information in JSON format."
+                    "content": system_content
                 },
                 {
                     "role": "user",
@@ -81,17 +112,19 @@ async def extract_responsibilities(resume_text: str) -> list:
                     if response_text.endswith("```"):
                         response_text = response_text[:-3]
                     response_text = response_text.strip()
+
+                    logger.debug(f"Cleaned response text: {response_text[:200]}...")
                     
                     responsibilities = json.loads(response_text)
                     if isinstance(responsibilities, list):
                         logger.info(f"Successfully extracted {len(responsibilities)} responsibilities")
                         return responsibilities
                     else:
-                        logger.error("Response was not a list")
+                        logger.error(f"Response was not a list but: {type(responsibilities)}")
                         return []
                 except json.JSONDecodeError as e:
-                    logger.error(f"Error parsing JSON response: {e}")
-                    logger.error(f"Raw response: {response_text}")
+                    logger.error(f"Error parsing JSON response: {str(e)}")
+                    logger.error(f"Raw response: {response_text[:200]}...")
                     return []
                     
     except Exception as e:

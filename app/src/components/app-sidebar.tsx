@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Plus, ChartColumn} from "lucide-react"
+import { Home, Plus, ChartColumn, Upload} from "lucide-react"
 
 import {
   Sidebar,
@@ -24,6 +24,11 @@ const items = [
     title: "Create Jobs",
     url: "/createJobs",
     icon: Plus,
+  },
+  {
+    title: "Upload Jobs",
+    url: "/uploadJobs",
+    icon: Upload,
   },
   {
     title: "Evaluaton Portal",

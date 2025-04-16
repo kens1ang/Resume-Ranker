@@ -34,11 +34,14 @@ async def parse_resume_document(file, job_description=None, job_requirements=Non
 
         # Get responsibilities using OpenRouter
         responsibilities = await extract_responsibilities(normalized_text)
-        
+        logger.info(f"Raw responsibilities from OpenRouter: {responsibilities}")
+
         if responsibilities:
             # Add the OpenRouter-extracted responsibilities to entity_data
             entity_data["Responsibilities"] = responsibilities
             logger.info(f"Added {len(responsibilities)} responsibilities from OpenRouter")
+        else:
+            logger.warning("No responsibilities were extracted from the resume")
 
         # Calculate similarity scores
         similarity_scores = await _calculate_similarities(

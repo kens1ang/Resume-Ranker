@@ -20,6 +20,7 @@ import {
 } from "./responsibilities";
 import { JobInfoSection } from "./jobInfo";
 import { Save, Loader2 } from "lucide-react";
+import { WeightageSection } from "./weightage";
 
 // Define the Degree type
 interface Degree {
@@ -38,7 +39,27 @@ export default function CreateJobPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     jobTitle: "",
+    workArrangement: "",
+    roleSummary: "",
+    companyDescription: "",
+    jobDescription: "",
   });
+
+  const [weightages, setWeightages] = useState({
+    skills: "medium" as "high" | "medium" | "low",
+    education: "medium" as "high" | "medium" | "low",
+    responsibilities: "medium" as "high" | "medium" | "low",
+  });
+
+  const handleWeightChange = (
+    category: string,
+    value: "high" | "medium" | "low"
+  ) => {
+    setWeightages((prev) => ({
+      ...prev,
+      [category]: value,
+    }));
+  };
 
   // Education requirements
   const [preferredDegrees, setPreferredDegrees] = useState<Degree[]>([]);
@@ -62,6 +83,21 @@ export default function CreateJobPage() {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
+    }));
+  };
+
+  // Add a handler for the Select component:
+  const handleWorkArrangementChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      workArrangement: value,
+    }));
+  };
+
+  const handleJobDescriptionChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      jobDescription: value,
     }));
   };
 
@@ -93,12 +129,29 @@ export default function CreateJobPage() {
       return false;
     }
 
+    const totalWeight =
+      getWeightPercentage(weightages.skills) +
+      getWeightPercentage(weightages.education) +
+      getWeightPercentage(weightages.responsibilities);
+    if (totalWeight !== 100) {
+      toast({
+        title: "Validation Error",
+        description: "Weightages must sum to exactly 100%",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     return true;
   };
 
   const resetForm = () => {
     setFormData({
       jobTitle: "",
+      workArrangement: "",
+      roleSummary: "",
+      companyDescription: "",
+      jobDescription: "",
     });
     setPreferredDegrees([]);
     setRequiredSkills([]);
@@ -106,6 +159,22 @@ export default function CreateJobPage() {
     setResponsibilities([]);
     if (responsibilitiesRef.current?.resetInput) {
       responsibilitiesRef.current.resetInput();
+    }
+    setWeightages({
+      skills: "medium",
+      education: "medium",
+      responsibilities: "medium",
+    });
+  };
+
+  const getWeightPercentage = (priority: "high" | "medium" | "low"): number => {
+    switch (priority) {
+      case "high":
+        return 50;
+      case "medium":
+        return 30;
+      case "low":
+        return 20;
     }
   };
 
@@ -138,10 +207,19 @@ export default function CreateJobPage() {
 
       const jobData = {
         jobTitle: formData.jobTitle,
+        workArrangement: formData.workArrangement,
+        roleSummary: formData.roleSummary,
+        companyDescription: formData.companyDescription,
         preferredDegree: formattedPreferredDegrees,
         requiredSkills,
         preferredSkills,
         responsibilities: allResponsibilities,
+        jobDescription: formData.jobDescription,
+        weightages: {
+          skills: getWeightPercentage(weightages.skills),
+          education: getWeightPercentage(weightages.education),
+          responsibilities: getWeightPercentage(weightages.responsibilities),
+        },
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -224,7 +302,13 @@ export default function CreateJobPage() {
           <div className="flex flex-col">
             <JobInfoSection
               jobTitle={formData.jobTitle}
+              workArrangement={formData.workArrangement}
+              roleSummary={formData.roleSummary}
+              companyDescription={formData.companyDescription}
               onJobTitleChange={handleInputChange}
+              onWorkArrangementChange={handleWorkArrangementChange}
+              onRoleSummaryChange={handleInputChange}
+              onCompanyDescriptionChange={handleInputChange}
             />
 
             <Separator />
@@ -254,6 +338,17 @@ export default function CreateJobPage() {
                 ref={responsibilitiesRef}
                 responsibilities={responsibilities}
                 setResponsibilities={setResponsibilities}
+              />
+            </div>
+
+            <Separator />
+
+            <div className="flex flex-col">
+              <WeightageSection
+                skillsWeight={weightages.skills}
+                educationWeight={weightages.education}
+                responsibilitiesWeight={weightages.responsibilities}
+                onWeightChange={handleWeightChange}
               />
             </div>
           </div>
