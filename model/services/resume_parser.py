@@ -93,16 +93,31 @@ async def _calculate_similarities(normalized_text, entity_data, job_description,
             job_formatted = format_for_matching(job_req_data, "job")
             
             # Calculate similarities for each category
-            for category in ["skills", "education", "responsibilities", "all"]:
+            for category in ["skills", "education", "responsibilities"]:
                 if category in resume_formatted and category in job_formatted:
                     resume_text = resume_formatted[category]
                     job_text = job_formatted[category]
+                    similarity_scores[category] = calculate_similarity(resume_text, job_text)
+            
+            # Calculate weighted overall score using the weightages from job_req_data
+            if "weightages" in job_req_data:
+                weightages = job_req_data["weightages"]
+                total_weight = sum(weightages.values()) if weightages else 100
+                
+                weighted_score = 0
+                for category in ["skills", "education", "responsibilities"]:
+                    if category in weightages and category in similarity_scores:
+                        # Apply the weight as a percentage
+                        weighted_score += similarity_scores[category] * (weightages[category] / total_weight)
+                
+                similarity_scores["overall"] = weighted_score
+            else:
+                # Fallback: equal weights if no weightages provided
+                valid_scores = [score for category, score in similarity_scores.items() 
+                               if category != "overall" and score > 0]
+                if valid_scores:
+                    similarity_scores["overall"] = sum(valid_scores) / len(valid_scores)
                     
-                    if category == "all":
-                        similarity_scores["overall"] = calculate_similarity(resume_text, job_text)
-                    else:
-                        similarity_scores[category] = calculate_similarity(resume_text, job_text)
-                        
         except json.JSONDecodeError:
             logger.error("Invalid JSON in job_requirements")
         except Exception as e:
@@ -110,6 +125,7 @@ async def _calculate_similarities(normalized_text, entity_data, job_description,
     
     # If no overall score was calculated with job requirements, use job description
     if job_description and similarity_scores["overall"] == 0.0:
+        # Direct comparison without weightages as fallback
         similarity_scores["overall"] = calculate_similarity(normalized_text, job_description)
         
         # Also calculate skill-specific similarity if available
@@ -121,6 +137,39 @@ async def _calculate_similarities(normalized_text, entity_data, job_description,
 
 def _generate_match_details(entity_data, job_req_data, similarity_scores, job_requirements):
     """Generate detailed matching information for the response."""
+
+    details = {}
+    weightages = {}
+    
+    if job_requirements:
+        try:
+            job_req_data = json.loads(job_requirements)
+            if "weightages" in job_req_data:
+                weightages = job_req_data["weightages"]
+                # Include the weightages in the response for frontend reference
+                details["applied_weightages"] = weightages
+        except:
+            pass
+
+    # Include details about each component's contribution to the overall score
+    details["skills_match"] = {
+        "score": similarity_scores["skills"],
+        "weight": weightages.get("skills", 33),  # Default to 33% if not specified
+        "contribution": similarity_scores["skills"] * (weightages.get("skills", 33) / 100)
+    }
+    
+    details["education_match"] = {
+        "score": similarity_scores["education"],
+        "weight": weightages.get("education", 33),
+        "contribution": similarity_scores["education"] * (weightages.get("education", 33) / 100)
+    }
+    
+    details["responsibilities_match"] = {
+        "score": similarity_scores["responsibilities"],
+        "weight": weightages.get("responsibilities", 34),
+        "contribution": similarity_scores["responsibilities"] * (weightages.get("responsibilities", 34) / 100)
+    }
+
     return {
         "skills_match": {
             "score": similarity_scores["skills"],

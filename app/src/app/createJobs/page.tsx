@@ -216,8 +216,8 @@ export default function CreateJobPage() {
         responsibilities: allResponsibilities,
         jobDescription: formData.jobDescription,
         weightages: {
-          skills: getWeightPercentage(weightages.skills),
-          education: getWeightPercentage(weightages.education),
+          skills: getWeightPercentage(weightages.skills),        // These are the actual percentage values
+          education: getWeightPercentage(weightages.education),  // e.g., 50, 30, 20
           responsibilities: getWeightPercentage(weightages.responsibilities),
         },
         createdAt: serverTimestamp(),

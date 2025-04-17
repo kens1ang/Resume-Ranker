@@ -5,6 +5,9 @@ from typing import Optional
 import uvicorn
 import os
 from dotenv import load_dotenv
+import json
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 from utils.logging import setup_logger
 from services.resume_parser import parse_resume_document
@@ -31,6 +34,51 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+try:
+    firebase_app = firebase_admin.get_app()
+except ValueError:
+    # Use a service account
+    cred_path = os.path.join(os.path.dirname(__file__), "service-account.json")
+    if os.path.exists(cred_path):
+        cred = credentials.Certificate(cred_path)
+        firebase_app = firebase_admin.initialize_app(cred)
+    else:
+        logger.warning("Firebase credentials file not found. Some features may not work.")
+
+async def get_job_by_id(job_id: str) -> dict:
+    """
+    Fetch job details from Firestore by job ID.
+    
+    Args:
+        job_id: The ID of the job to fetch
+        
+    Returns:
+        Dictionary containing the job data
+        
+    Raises:
+        HTTPException: If job not found or there's a database error
+    """
+    try:
+        # Access Firestore client
+        db = firestore.client()
+        
+        # Get job document from the 'jobs' collection
+        job_ref = db.collection('jobs').document(job_id)
+        job_doc = job_ref.get()
+        
+        if not job_doc.exists:
+            logger.warning(f"Job with ID {job_id} not found")
+            raise HTTPException(status_code=404, detail=f"Job with ID {job_id} not found")
+            
+        # Return job data as dictionary
+        job_data = job_doc.to_dict()
+        logger.info(f"Successfully fetched job with ID: {job_id}")
+        return job_data
+        
+    except Exception as e:
+        logger.error(f"Error fetching job with ID {job_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching job: {str(e)}")
+
 @app.get("/")
 def read_root():
     return {"message": "PDF Text Extraction, NER & Semantic Matching API is running"}
@@ -45,12 +93,28 @@ async def get_degrees():
 async def parse_resume(
     file: UploadFile = File(...), 
     job_description: Optional[str] = Form(None),
-    job_requirements: Optional[str] = Form(None)
+    job_requirements: Optional[str] = Form(None),
+    job_id: Optional[str] = Form(None)
 ):
     """
     Endpoint to process a resume PDF, extract text and entities,
     and calculate similarity with job requirements.
     """
+    if job_id:
+        job = await get_job_by_id(job_id)
+        job_description = job.get("jobDescription")
+        job_requirements = json.dumps({
+            "preferredDegree": job.get("preferredDegree", ""),
+            "requiredSkills": job.get("requiredSkills", []),
+            "preferredSkills": job.get("preferredSkills", []),
+            "responsibilities": job.get("responsibilities", []),
+            "weightages": job.get("weightages", {
+                "skills": 33,
+                "education": 33, 
+                "responsibilities": 34
+            })
+        })
+    
     # Validate file type
     if not file.filename.lower().endswith('.pdf'):
         logger.warning(f"Rejected non-PDF file: {file.filename}")

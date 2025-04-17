@@ -25,6 +25,11 @@ interface Job {
   responsibilities?: string[];
   additionalRequirements?: string;
   description?: string;
+  weightages?: {
+    skills: number;
+    education: number;
+    responsibilities: number;
+  };
 }
 
 interface SelectJobProps {

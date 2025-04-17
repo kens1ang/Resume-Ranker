@@ -41,6 +41,11 @@ interface Job {
   preferredSkills?: string[];
   responsibilities?: string[];
   description?: string;
+  weightages?: {
+    skills: number;
+    education: number;
+    responsibilities: number;
+  };
 }
 
 interface ResumeResult {
@@ -59,6 +64,13 @@ interface ResumeResult {
   };
   entityData: {
     [key: string]: string[];
+  };
+  matchDetails?: {
+    applied_weightages?: {
+      skills: number;
+      education: number;
+      responsibilities: number;
+    };
   };
   createdAt: any;
   resumeFile?: {
@@ -139,6 +151,7 @@ export function EvalResult({
                 responsibilities: 0,
               },
               entityData: data.entityData || {},
+              matchDetails: data.matchDetails || {},
               createdAt: data.createdAt,
             };
           });
@@ -623,6 +636,45 @@ export function EvalResult({
                               <h4 className="font-semibold mt-4 mb-2">
                                 Detailed Match Scores
                               </h4>
+
+                              <div className="bg-slate-100 p-3 rounded-md mb-3">
+                                <h5 className="text-sm font-medium mb-2">
+                                  Applied Weightages:
+                                </h5>
+                                <div className="grid grid-cols-3 gap-2 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground">
+                                      Skills:
+                                    </span>{" "}
+                                    <span className="font-medium">
+                                      {result.matchDetails?.applied_weightages
+                                        ?.skills || 33}
+                                      %
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">
+                                      Education:
+                                    </span>{" "}
+                                    <span className="font-medium">
+                                      {result.matchDetails?.applied_weightages
+                                        ?.education || 33}
+                                      %
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">
+                                      Responsibilities:
+                                    </span>{" "}
+                                    <span className="font-medium">
+                                      {result.matchDetails?.applied_weightages
+                                        ?.responsibilities || 34}
+                                      %
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
                               <div className="space-y-3">
                                 {Object.entries(result.similarityScores).map(
                                   ([key, value]) => (

@@ -28,6 +28,11 @@ interface Job {
   responsibilities?: string[];
   additionalRequirements?: string;
   description?: string;
+  weightages?: {
+    skills: number;
+    education: number;
+    responsibilities: number;
+  };
 }
 
 export default function EvaluationPortal() {

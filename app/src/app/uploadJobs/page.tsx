@@ -71,20 +71,19 @@ export default function UploadJobPage() {
   };
 
   const validateForm = () => {
-    if (!formData.jobDescription.trim()) {
+    if (!formData.jobTitle.trim()) {
       toast({
         title: "Validation Error",
-        description: "Job description is required",
+        description: "Please enter a job title",
         variant: "destructive",
       });
       return false;
     }
 
-    // Add to validateForm function
-    if (!formData.jobTitle.trim()) {
+    if (!formData.jobDescription.trim()) {
       toast({
         title: "Validation Error",
-        description: "Please enter a job title",
+        description: "Job description is required",
         variant: "destructive",
       });
       return false;
@@ -105,19 +104,6 @@ export default function UploadJobPage() {
         title: "Validation Error",
         description:
           "No responsibilities could be extracted. Please check your job description.",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    const totalWeight =
-      getWeightPercentage(weightages.skills) +
-      getWeightPercentage(weightages.education) +
-      getWeightPercentage(weightages.responsibilities);
-    if (totalWeight !== 100) {
-      toast({
-        title: "Validation Error",
-        description: "Weightages must sum to exactly 100%",
         variant: "destructive",
       });
       return false;
@@ -183,7 +169,6 @@ export default function UploadJobPage() {
       // Update form with extracted data
       setFormData((prev) => ({
         ...prev,
-        jobTitle: prev.jobTitle.trim() ? prev.jobTitle : extractedData.jobTitle,
         workArrangement: extractedData.workArrangement || "",
         roleSummary: extractedData.roleSummary || "",
         companyDescription: extractedData.companyDescription || "",
@@ -229,10 +214,7 @@ export default function UploadJobPage() {
 
     try {
       // If no job details have been extracted yet, do it automatically
-      if (
-        !formData.jobTitle.trim() ||
-        (requiredSkills.length === 0 && responsibilities.length === 0)
-      ) {
+      if (requiredSkills.length === 0 && responsibilities.length === 0) {
         toast({
           title: "Extracting Job Details",
           description: "Please wait while we analyze the job description...",
@@ -248,9 +230,6 @@ export default function UploadJobPage() {
           // Update form with extracted data
           setFormData((prev) => ({
             ...prev,
-            jobTitle: prev.jobTitle.trim()
-              ? prev.jobTitle
-              : extractedData.jobTitle,
             workArrangement: extractedData.workArrangement || "",
             roleSummary: extractedData.roleSummary || "",
             companyDescription: extractedData.companyDescription || "",
@@ -261,7 +240,7 @@ export default function UploadJobPage() {
           setPreferredSkills(extractedData.preferredSkills || []);
           setResponsibilities(extractedData.responsibilities || []);
 
-          await new Promise(resolve => setTimeout(resolve, 50));
+          await new Promise((resolve) => setTimeout(resolve, 50));
         } catch (extractError) {
           console.error("Error extracting job details:", extractError);
           toast({
@@ -296,8 +275,8 @@ export default function UploadJobPage() {
 
         // Weightages
         weightages: {
-          skills: getWeightPercentage(weightages.skills),
-          education: getWeightPercentage(weightages.education),
+          skills: getWeightPercentage(weightages.skills), // These are the actual percentage values
+          education: getWeightPercentage(weightages.education), // e.g., 50, 30, 20
           responsibilities: getWeightPercentage(weightages.responsibilities),
         },
 
@@ -396,7 +375,7 @@ export default function UploadJobPage() {
                   <div className="w-2/5">
                     <h3 className="font-medium text-lg">Job Title</h3>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Enter the job title or let the system extract it
+                      Enter the job title
                     </p>
                   </div>
 

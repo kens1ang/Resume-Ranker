@@ -29,6 +29,11 @@ interface Job {
   responsibilities?: string[];
   additionalRequirements?: string;
   description?: string;
+  weightages?: {
+    skills: number;
+    education: number;
+    responsibilities: number;
+  };
 }
 
 interface UploadedFile {
@@ -46,7 +51,11 @@ interface ResumeUploadProps {
   onComplete: () => void;
 }
 
-export function ResumeUpload({ selectedJob, onChangePosition, onComplete }: ResumeUploadProps) {
+export function ResumeUpload({
+  selectedJob,
+  onChangePosition,
+  onComplete,
+}: ResumeUploadProps) {
   const [uppy, setUppy] = useState<Uppy | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -147,11 +156,13 @@ export function ResumeUpload({ selectedJob, onChangePosition, onComplete }: Resu
             responsibilities: selectedJob.responsibilities || [],
             additionalRequirements: selectedJob.additionalRequirements || "",
             description: selectedJob.description || "",
+            weightages: {
+              skills: selectedJob.weightages?.skills || 33,
+              education: selectedJob.weightages?.education || 33,
+              responsibilities: selectedJob.weightages?.responsibilities || 34,
+            },
           };
-          formData.append(
-            "job_requirements",
-            JSON.stringify(jobRequirements)
-          );
+          formData.append("job_requirements", JSON.stringify(jobRequirements));
 
           // Call the parse-resume endpoint to get both text and NER results
           console.log("Sending file to API for parsing");
@@ -174,7 +185,7 @@ export function ResumeUpload({ selectedJob, onChangePosition, onComplete }: Resu
             const extractedText = result.text || "";
             const entityData = result.entity_data || {};
             const similarity = result.similarity || 0;
-            
+
             const similarityScores = result.similarity_scores || {
               overall: result.similarity_scores?.overall || similarity,
               skills: result.similarity_scores?.skills || 0,
@@ -192,7 +203,7 @@ export function ResumeUpload({ selectedJob, onChangePosition, onComplete }: Resu
               resumeFile: {
                 name: file.name,
                 data: file.data, // This is the base64 data
-              }
+              },
             };
 
             // Convert job title to a valid collection name
@@ -232,7 +243,9 @@ export function ResumeUpload({ selectedJob, onChangePosition, onComplete }: Resu
             // Success toast
             const overallPercent = (similarityScores.overall * 100).toFixed(1);
             const skillsPercent = (similarityScores.skills * 100).toFixed(1);
-            const jobTitlePercent = (similarityScores.job_title * 100).toFixed(1);
+            const jobTitlePercent = (similarityScores.job_title * 100).toFixed(
+              1
+            );
 
             toast({
               title: "Success",
@@ -300,10 +313,7 @@ export function ResumeUpload({ selectedJob, onChangePosition, onComplete }: Resu
             Upload candidate resumes to evaluate against this position
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={onChangePosition}
-        >
+        <Button variant="outline" onClick={onChangePosition}>
           Change Position
         </Button>
       </div>

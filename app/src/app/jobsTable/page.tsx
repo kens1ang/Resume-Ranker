@@ -62,6 +62,11 @@ interface Job {
   responsibilities: string[];
   additionalRequirements: string;
   createdAt: any; // Firestore timestamp
+  weightages?: {
+    skills: number;
+    education: number;
+    responsibilities: number;
+  };
 }
 
 export default function JobsTablePage() {

@@ -1,7 +1,6 @@
 // This function extracts structured information from job descriptions using the OpenRouter API.
 
 interface ExtractedJobData {
-  jobTitle: string;
   workArrangement?: string;
   roleSummary?: string;
   companyDescription?: string;
@@ -31,14 +30,14 @@ export async function extractJobData(jobDescription: string): Promise<ExtractedJ
           {
             "role": "user",
             "content": `Extract the following information from this job description:
-1. Job title
-2. Work arrangement (remote, hybrid, on-site) if specified
-3. Role summary (brief description of the role)
-4. Company description if available
-5. Preferred degree requirements (as a semicolon-separated list)
-6. Required skills (as an array of strings)
-7. Preferred skills (as an array of strings)
-8. Responsibilities (as an array of strings)
+
+1. Work arrangement (remote, hybrid, on-site) if specified
+2. Role summary (brief description of the role)
+3. Company description if available
+4. Preferred degree requirements (as a semicolon-separated list)
+5. Required skills (as an array of strings)
+6. Preferred skills (as an array of strings)
+7. Responsibilities (as an array of strings)
 
 Important formatting guidelines:
 - For skills (both required and preferred): Keep them concise (1-4 words), like "Python", "React", "Communication skills", "Project management"
@@ -47,7 +46,7 @@ Important formatting guidelines:
 - For responsibilities: These can be longer and more descriptive
 
 Format your response as a JSON object with these keys: 
-jobTitle, workArrangement, roleSummary, companyDescription, preferredDegree, requiredSkills, preferredSkills, responsibilities
+workArrangement, roleSummary, companyDescription, preferredDegree, requiredSkills, preferredSkills, responsibilities
 
 Here's the job description:
 ${jobDescription}`
@@ -77,7 +76,6 @@ ${jobDescription}`
     
     // Apply defaults and validation
     return {
-      jobTitle: extractedData.jobTitle || "Untitled Position",
       workArrangement: extractedData.workArrangement || "",
       roleSummary: extractedData.roleSummary || "",
       companyDescription: extractedData.companyDescription || "",
