@@ -13,7 +13,7 @@ import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { WeightageSection } from "../createJobs/weightage";
+import { WeightageSection } from "../../components/weightage";
 import { JobDescriptionUpload } from "./jobDescription";
 import { extractJobData } from "@/lib/jobParser";
 import { Input } from "@/components/ui/input";
@@ -131,15 +131,54 @@ export default function UploadJobPage() {
     });
   };
 
-  const getWeightPercentage = (priority: "high" | "medium" | "low"): number => {
-    switch (priority) {
-      case "high":
-        return 50;
-      case "medium":
-        return 30;
-      case "low":
-        return 20;
+  const calculateWeightDistribution = (
+    skills: "high" | "medium" | "low",
+    education: "high" | "medium" | "low",
+    responsibilities: "high" | "medium" | "low"
+  ) => {
+    // Convert priorities to numeric values
+    const priorityToValue = (priority: "high" | "medium" | "low"): number => {
+      switch (priority) {
+        case "high":
+          return 5;
+        case "medium":
+          return 3;
+        case "low":
+          return 1;
+      }
+    };
+
+    const values = {
+      skills: priorityToValue(skills),
+      education: priorityToValue(education),
+      responsibilities: priorityToValue(responsibilities),
+    };
+
+    // Calculate sum
+    const total = values.skills + values.education + values.responsibilities;
+
+    // Calculate percentages
+    let distribution = {
+      skills: Math.round((values.skills / total) * 100),
+      education: Math.round((values.education / total) * 100),
+      responsibilities: Math.round((values.responsibilities / total) * 100),
+    };
+
+    // Ensure total is exactly 100% (fix rounding errors)
+    const sum =
+      distribution.skills +
+      distribution.education +
+      distribution.responsibilities;
+    if (sum !== 100) {
+      // Adjust the largest value
+      const keys = ["skills", "education", "responsibilities"] as const;
+      const largestKey = keys.reduce((a, b) =>
+        distribution[a] > distribution[b] ? a : b
+      );
+      distribution[largestKey] += 100 - sum;
     }
+
+    return distribution;
   };
 
   const handleExtract = async () => {
@@ -259,6 +298,12 @@ export default function UploadJobPage() {
         return;
       }
 
+      const weights = calculateWeightDistribution(
+        weightages.skills,
+        weightages.education,
+        weightages.responsibilities
+      );
+
       const jobData = {
         // Original job description
         jobDescription: formData.jobDescription,
@@ -275,9 +320,9 @@ export default function UploadJobPage() {
 
         // Weightages
         weightages: {
-          skills: getWeightPercentage(weightages.skills), // These are the actual percentage values
-          education: getWeightPercentage(weightages.education), // e.g., 50, 30, 20
-          responsibilities: getWeightPercentage(weightages.responsibilities),
+          skills: weights.skills,
+          education: weights.education,
+          responsibilities: weights.responsibilities,
         },
 
         // Timestamps
