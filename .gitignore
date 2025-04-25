@@ -1,0 +1,12 @@
+# Exclude model directories
+/model/BERT-model/
+/model/NER-model/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+.env.*
