@@ -104,11 +104,11 @@ async def _calculate_similarities(normalized_text, entity_data, job_description,
                 weightages = job_req_data["weightages"]
                 total_weight = sum(weightages.values()) if weightages else 100
                 
+                # These weightages are already percentages
                 weighted_score = 0
                 for category in ["skills", "education", "responsibilities"]:
                     if category in weightages and category in similarity_scores:
-                        # Apply the weight as a percentage
-                        weighted_score += similarity_scores[category] * (weightages[category] / total_weight)
+                        weighted_score += similarity_scores[category] * (weightages[category] / 100)
                 
                 similarity_scores["overall"] = weighted_score
             else:

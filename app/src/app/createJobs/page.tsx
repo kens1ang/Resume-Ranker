@@ -101,6 +101,52 @@ export default function CreateJobPage() {
     }));
   };
 
+  const formatJobDescription = (data: any, reqSkills: string[], prefSkills: string[], resps: string[]) => {
+    // Basic template
+    let template = `Company: ${data.companyDescription || 'Not specified'}
+  
+  Position: ${data.jobTitle || 'Not specified'}
+  Location: ${data.workArrangement || 'Not specified'}
+  
+  Role Summary:
+  ${data.roleSummary || 'Not specified'}
+  `;
+  
+    // Add preferred degrees if available
+    if (preferredDegrees.length > 0) {
+      template += `\nMinimum Qualifications:`;
+      preferredDegrees.forEach((degree) => {
+        template += `\n• ${degree.level} ${degree.degreeType}${degree.field ? ` in ${degree.field}` : ''}`;
+      });
+    }
+  
+    // Add required skills
+    if (reqSkills.length > 0) {
+      template += `\n\nRequired Skills:`;
+      reqSkills.forEach((skill) => {
+        template += `\n• ${skill}`;
+      });
+    }
+  
+    // Add preferred skills if available
+    if (prefSkills.length > 0) {
+      template += `\n\nPreferred Skills:`;
+      prefSkills.forEach((skill) => {
+        template += `\n• ${skill}`;
+      });
+    }
+  
+    // Add responsibilities
+    if (resps.length > 0) {
+      template += `\n\nKey Responsibilities:`;
+      resps.forEach((resp) => {
+        template += `\n• ${resp}`;
+      });
+    }
+  
+    return template;
+  };
+
   const validateForm = () => {
     if (!formData.jobTitle.trim()) {
       toast({
@@ -237,6 +283,13 @@ export default function CreateJobPage() {
         weightages.responsibilities
       );
 
+      const formattedJobDescription = formatJobDescription(
+        formData,
+        requiredSkills,
+        preferredSkills,
+        allResponsibilities
+      );
+
       const jobData = {
         jobTitle: formData.jobTitle,
         workArrangement: formData.workArrangement,
@@ -246,7 +299,7 @@ export default function CreateJobPage() {
         requiredSkills,
         preferredSkills,
         responsibilities: allResponsibilities,
-        jobDescription: formData.jobDescription,
+        jobDescription: formattedJobDescription,
         weightages: {
           skills: weights.skills,
           education: weights.education,
