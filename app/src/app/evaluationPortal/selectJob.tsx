@@ -23,7 +23,6 @@ interface Job {
   requiredSkills?: string[];
   preferredSkills?: string[];
   responsibilities?: string[];
-  additionalRequirements?: string;
   description?: string;
   weightages?: {
     skills: number;

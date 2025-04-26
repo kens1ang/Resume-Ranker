@@ -5,8 +5,8 @@ from extractors.pdf_extractor import extract_text_from_pdf, save_upload_file_tmp
 from extractors.entity_extractor import extract_entities
 from matchers.formatter import format_for_matching
 from matchers.similarity import calculate_similarity
-from services.openrouter import extract_responsibilities
-
+from services.bert_model import predict_match
+from services.extractRes import extract_responsibilities
 logger = setup_logger("resume-parser-service")
 
 async def parse_resume_document(file, job_description=None, job_requirements=None):
@@ -61,6 +61,12 @@ async def parse_resume_document(file, job_description=None, job_requirements=Non
         }
         
         logger.info(f"Successfully processed resume: {file.filename}")
+        
+        logger.info(f"Received job description: {job_description[:100]}...")
+        if normalized_text and job_description:
+            bert_prediction = await predict_match(normalized_text, job_description)
+            response_data["bert_prediction"] = bert_prediction
+        
         return response_data
         
     except Exception as e:

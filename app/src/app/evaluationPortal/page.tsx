@@ -11,6 +11,7 @@ import {
   query,
   orderBy,
   where,
+  limit,
 } from "firebase/firestore";
 import { app } from "@/firebase/firebaseConfig";
 import { SelectJob } from "./selectJob";
@@ -26,7 +27,7 @@ interface Job {
   requiredSkills?: string[];
   preferredSkills?: string[];
   responsibilities?: string[];
-  additionalRequirements?: string;
+  jobDescription?: string;
   description?: string;
   weightages?: {
     skills: number;
@@ -63,7 +64,7 @@ export default function EvaluationPortal() {
             requiredSkills: data.requiredSkills,
             preferredSkills: data.preferredSkills,
             responsibilities: data.responsibilities,
-            additionalRequirements: data.additionalRequirements,
+            jobDescription: data.jobDescription,
           };
         });
 
@@ -92,11 +93,51 @@ export default function EvaluationPortal() {
 
       setIsLoadingResults(true);
       try {
+        // Get the dynamic collection name
+        const getCollectionNameFromJobTitle = (jobTitle: string): string => {
+          const collectionName = jobTitle
+            .trim()
+            .replace(/[^\w\s]/gi, "")
+            .replace(/\s+(\w)/g, (_, letter) => letter.toUpperCase())
+            .replace(/\s/g, "");
+          return (
+            collectionName.charAt(0).toLowerCase() +
+            collectionName.slice(1) +
+            "Submissions"
+          );
+        };
+
+        const collectionName = getCollectionNameFromJobTitle(
+          selectedJob.jobTitle
+        );
+
+        // Try job-specific collection first
+        try {
+          const jobSpecificCollection = collection(db, collectionName);
+          const specificQuery = query(
+            jobSpecificCollection,
+            where("jobId", "==", selectedJob.id),
+            limit(1)
+          );
+          const specificSnapshot = await getDocs(specificQuery);
+
+          if (!specificSnapshot.empty) {
+            setHasResults(true);
+            return;
+          }
+        } catch (error) {
+          console.warn(
+            `Error checking job-specific collection ${collectionName}`,
+            error
+          );
+        }
+
+        // Fall back to resumeSubmissions
         const resultsCollection = collection(db, "resumeSubmissions");
         const resultsQuery = query(
           resultsCollection,
           where("jobId", "==", selectedJob.id),
-          orderBy("createdAt", "desc")
+          limit(1)
         );
 
         const resultsSnapshot = await getDocs(resultsQuery);
@@ -114,7 +155,6 @@ export default function EvaluationPortal() {
         setIsLoadingResults(false);
       }
     }
-
     checkForResults();
   }, [selectedJob, db]);
 

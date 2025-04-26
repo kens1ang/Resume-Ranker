@@ -1,7 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import Image from "next/image";
@@ -11,7 +9,7 @@ import Link from "next/link";
 const recentFiles = [
   {
     id: 1,
-    name: "Resume Analysis",
+    name: "Candidate 1",
     type: "PDF",
     date: "Today, 3:45 PM",
     icon: "/images/pdf.png",
@@ -19,7 +17,7 @@ const recentFiles = [
   },
   {
     id: 2,
-    name: "Entity Recognition",
+    name: "Candidate 2",
     type: "JSON",
     date: "Yesterday, 1:30 PM",
     icon: "/images/pdf.png",
@@ -27,7 +25,7 @@ const recentFiles = [
   },
   {
     id: 3,
-    name: "Dataset Combined",
+    name: "Candidate 3",
     type: "JSON",
     date: "Jun 10, 2:15 PM",
     icon: "/images/pdf.png",
@@ -35,7 +33,7 @@ const recentFiles = [
   },
   {
     id: 4,
-    name: "Resume CV Parsing",
+    name: "Candidate 4",
     type: "PY",
     date: "Jun 8, 10:45 AM",
     icon: "/images/pdf.png",

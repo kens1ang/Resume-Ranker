@@ -27,7 +27,7 @@ interface Job {
   requiredSkills?: string[];
   preferredSkills?: string[];
   responsibilities?: string[];
-  additionalRequirements?: string;
+  jobDescription?: string;
   description?: string;
   weightages?: {
     skills: number;
@@ -140,11 +140,15 @@ export function ResumeUpload({
           const formData = new FormData();
           formData.append("file", new Blob([file.data]), file.name);
 
-          if (selectedJob?.additionalRequirements) {
-            formData.append(
-              "job_description",
-              selectedJob.additionalRequirements
+          if (selectedJob?.jobDescription) {
+            console.log(
+              "Job description found:",
+              selectedJob.jobDescription.substring(0, 100) + "..."
             );
+            formData.append("job_description", selectedJob.jobDescription);
+          } else {
+            console.warn("No job description available!");
+            console.log("Selected job:", selectedJob);
           }
 
           const jobRequirements = {
@@ -154,7 +158,6 @@ export function ResumeUpload({
             requiredDegree: selectedJob.requiredDegree || "",
             preferredDegree: selectedJob.preferredDegree || "",
             responsibilities: selectedJob.responsibilities || [],
-            additionalRequirements: selectedJob.additionalRequirements || "",
             description: selectedJob.description || "",
             weightages: {
               skills: selectedJob.weightages?.skills || 33,
@@ -185,6 +188,7 @@ export function ResumeUpload({
             const extractedText = result.text || "";
             const entityData = result.entity_data || {};
             const similarity = result.similarity || 0;
+            const bertPrediction = result.bert_prediction || null;
 
             const similarityScores = result.similarity_scores || {
               overall: result.similarity_scores?.overall || similarity,
@@ -225,8 +229,14 @@ export function ResumeUpload({
               );
             };
 
+            // Get the dynamic collection name based on job title
+            const collectionName = getCollectionNameFromJobTitle(
+              selectedJob.jobTitle
+            );
+            console.log(`Storing resume in collection: ${collectionName}`);
+
             // Store in a collection named after the job title
-            await addDoc(collection(db, "resumeSubmissions"), {
+            await addDoc(collection(db, collectionName), {
               jobId: selectedJob.id,
               jobTitle: selectedJob.jobTitle,
               fileName: file.name,
@@ -237,6 +247,23 @@ export function ResumeUpload({
               entityData: entityData,
               similarity: similarity,
               similarityScores: similarityScores,
+              bertPrediction,
+              createdAt: serverTimestamp(),
+            });
+
+            await addDoc(collection(db, "resumeSubmissions"), {
+              jobId: selectedJob.id,
+              jobTitle: selectedJob.jobTitle,
+              fileName: file.name,
+              fileType: file.type,
+              fileSize: file.size,
+              candidateName: file.meta?.name || "Unknown",
+              collection: collectionName, // Store the collection name for reference
+              extractedText: extractedText,
+              entityData: entityData,
+              similarity: similarity,
+              similarityScores: similarityScores,
+              bertPrediction,
               createdAt: serverTimestamp(),
             });
 

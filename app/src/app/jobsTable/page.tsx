@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  getFirestore, 
-  collection, 
-  getDocs, 
-  query, 
-  orderBy, 
-  deleteDoc, 
-  doc 
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  deleteDoc,
+  doc,
 } from "firebase/firestore";
 import { app } from "@/firebase/firebaseConfig";
 import { AppHeader } from "@/components/app-header";
@@ -19,6 +19,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -40,27 +46,26 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { 
-  Briefcase, 
-  MoreHorizontal, 
-  Plus, 
-  Search, 
-  Trash2, 
-  Eye, 
+import {
+  Briefcase,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Trash2,
+  Eye,
   Pencil,
-  FileText
+  FileText,
 } from "lucide-react";
 
 // Type definition for job data
 interface Job {
   id: string;
   jobTitle: string;
-  requiredDegree: string;
+  workArrangement?: string;
   preferredDegree: string;
   requiredSkills: string[];
   preferredSkills: string[];
   responsibilities: string[];
-  additionalRequirements: string;
   createdAt: any; // Firestore timestamp
   weightages?: {
     skills: number;
@@ -84,16 +89,16 @@ export default function JobsTablePage() {
         const jobsCollection = collection(db, "jobs");
         const jobsQuery = query(jobsCollection, orderBy("createdAt", "desc"));
         const querySnapshot = await getDocs(jobsQuery);
-        
+
         const jobsData: Job[] = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data() as Omit<Job, "id">;
           jobsData.push({
             id: doc.id,
-            ...data
+            ...data,
           });
         });
-        
+
         setJobs(jobsData);
         setFilteredJobs(jobsData);
       } catch (error) {
@@ -101,13 +106,13 @@ export default function JobsTablePage() {
         toast({
           title: "Error",
           description: "Failed to load jobs. Please try again.",
-          variant: "destructive"
+          variant: "destructive",
         });
       } finally {
         setIsLoading(false);
       }
     }
-    
+
     fetchJobs();
   }, [db, toast]);
 
@@ -117,14 +122,17 @@ export default function JobsTablePage() {
       setFilteredJobs(jobs);
       return;
     }
-    
+
     const query = searchQuery.toLowerCase();
-    const filtered = jobs.filter(job => 
-      job.jobTitle.toLowerCase().includes(query) ||
-      job.requiredSkills.some(skill => skill.toLowerCase().includes(query)) ||
-      job.preferredSkills.some(skill => skill.toLowerCase().includes(query))
+    const filtered = jobs.filter(
+      (job) =>
+        job.jobTitle.toLowerCase().includes(query) ||
+        job.requiredSkills.some((skill) =>
+          skill.toLowerCase().includes(query)
+        ) ||
+        job.preferredSkills.some((skill) => skill.toLowerCase().includes(query))
     );
-    
+
     setFilteredJobs(filtered);
   }, [searchQuery, jobs]);
 
@@ -133,7 +141,7 @@ export default function JobsTablePage() {
     if (!timestamp || !timestamp.toDate) {
       return "N/A";
     }
-    
+
     const date = timestamp.toDate();
     return new Intl.DateTimeFormat("en-US", {
       year: "numeric",
@@ -146,11 +154,11 @@ export default function JobsTablePage() {
   const handleDeleteJob = async (jobId: string) => {
     try {
       await deleteDoc(doc(db, "jobs", jobId));
-      
+
       // Update state to remove the deleted job
-      setJobs(jobs.filter(job => job.id !== jobId));
-      setFilteredJobs(filteredJobs.filter(job => job.id !== jobId));
-      
+      setJobs(jobs.filter((job) => job.id !== jobId));
+      setFilteredJobs(filteredJobs.filter((job) => job.id !== jobId));
+
       toast({
         title: "Success",
         description: "Job deleted successfully",
@@ -160,7 +168,7 @@ export default function JobsTablePage() {
       toast({
         title: "Error",
         description: "Failed to delete job. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -168,14 +176,14 @@ export default function JobsTablePage() {
   return (
     <div className="flex flex-col w-full">
       <AppHeader />
-      
+
       <main className="flex-1 p-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold flex items-center">
             <Briefcase className="mr-2 h-6 w-6" />
             Jobs Database
           </h1>
-          
+
           <Link href="/createJobs">
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
@@ -183,14 +191,14 @@ export default function JobsTablePage() {
             </Button>
           </Link>
         </div>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Manage Jobs</CardTitle>
             <CardDescription>
               View, edit and manage your company job postings.
             </CardDescription>
-            
+
             <div className="flex items-center gap-4 mt-4">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -213,7 +221,9 @@ export default function JobsTablePage() {
                 <FileText className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold">No jobs found</h3>
                 <p className="text-muted-foreground">
-                  {searchQuery ? "Try a different search term" : "Click 'Add New Job' to create your first job"}
+                  {searchQuery
+                    ? "Try a different search term"
+                    : "Click 'Add New Job' to create your first job"}
                 </p>
               </div>
             ) : (
@@ -221,10 +231,11 @@ export default function JobsTablePage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Job Title</TableHead>
+                    <TableHead>Work Arrangement</TableHead>
                     <TableHead>Required Skills</TableHead>
                     <TableHead>Preferred Skills</TableHead>
-                    <TableHead>Degree Required</TableHead>
                     <TableHead>Degree Preferred</TableHead>
+                    <TableHead>Weightages</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -232,52 +243,147 @@ export default function JobsTablePage() {
                 <TableBody>
                   {filteredJobs.map((job) => (
                     <TableRow key={job.id}>
-                      <TableCell className="font-medium">{job.jobTitle}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {job.requiredSkills.slice(0, 2).map((skill, index) => (
-                            <Badge key={index} variant="secondary" className="mr-1">
-                              {skill}
-                            </Badge>
-                          ))}
-                          {job.requiredSkills.length > 2 && (
-                            <Badge variant="outline">+{job.requiredSkills.length - 2}</Badge>
-                          )}
-                        </div>
+                      <TableCell className="font-medium">
+                        {job.jobTitle}
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {job.preferredSkills && job.preferredSkills.slice(0, 2).map((skill, index) => (
-                            <Badge key={index} variant="outline" className="mr-1">
-                              {skill}
-                            </Badge>
-                          ))}
-                          {job.preferredSkills && job.preferredSkills.length > 2 && (
-                            <Badge variant="outline">+{job.preferredSkills.length - 2}</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {job.requiredDegree ? (
-                          <Badge variant="secondary">
-                            {job.requiredDegree.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        {job.workArrangement ? (
+                          <Badge
+                            variant="outline"
+                            className={
+                              job.workArrangement === "remote"
+                                ? "bg-blue-50 text-blue-700 hover:bg-blue-50"
+                                : job.workArrangement === "hybrid"
+                                ? "bg-purple-50 text-purple-700 hover:bg-purple-50"
+                                : "bg-amber-50 text-amber-700 hover:bg-amber-50"
+                            }
+                          >
+                            {job.workArrangement.charAt(0).toUpperCase() +
+                              job.workArrangement.slice(1)}
                           </Badge>
                         ) : (
-                          <span className="text-muted-foreground">None</span>
+                          <span className="text-muted-foreground">
+                            Not specified
+                          </span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {job.requiredSkills
+                            .slice(0, 2)
+                            .map((skill, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="mr-1"
+                              >
+                                {skill}
+                              </Badge>
+                            ))}
+                          {job.requiredSkills.length > 2 && (
+                            <Badge variant="outline">
+                              +{job.requiredSkills.length - 2}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {job.preferredSkills &&
+                            job.preferredSkills
+                              .slice(0, 2)
+                              .map((skill, index) => (
+                                <Badge
+                                  key={index}
+                                  variant="outline"
+                                  className="mr-1"
+                                >
+                                  {skill}
+                                </Badge>
+                              ))}
+                          {job.preferredSkills &&
+                            job.preferredSkills.length > 2 && (
+                              <Badge variant="outline">
+                                +{job.preferredSkills.length - 2}
+                              </Badge>
+                            )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {job.preferredDegree ? (
                           <Badge variant="outline">
-                            {job.preferredDegree.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            {job.preferredDegree
+                              .replace(/-/g, " ")
+                              .replace(/\b\w/g, (l) => l.toUpperCase())}
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground">None</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        {formatDate(job.createdAt)}
+                        {job.weightages ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center space-x-1 cursor-help">
+                                  <div className="flex h-2 w-24 rounded-full overflow-hidden bg-gray-200">
+                                    <div
+                                      className="bg-blue-500"
+                                      style={{
+                                        width: `${job.weightages.skills}%`,
+                                      }}
+                                    />
+                                    <div
+                                      className="bg-green-500"
+                                      style={{
+                                        width: `${job.weightages.education}%`,
+                                      }}
+                                    />
+                                    <div
+                                      className="bg-amber-500"
+                                      style={{
+                                        width: `${job.weightages.responsibilities}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="top"
+                                className="text-xs p-2"
+                              >
+                                <div className="font-medium mb-1">
+                                  Weightage Distribution:
+                                </div>
+                                <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
+                                  <div className="flex items-center">
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-1"></div>{" "}
+                                    Skills:
+                                  </div>
+                                  <div>{job.weightages.skills}%</div>
+
+                                  <div className="flex items-center">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>{" "}
+                                    Education:
+                                  </div>
+                                  <div>{job.weightages.education}%</div>
+
+                                  <div className="flex items-center">
+                                    <div className="w-2 h-2 bg-amber-500 rounded-full mr-1"></div>{" "}
+                                    Responsibilities:
+                                  </div>
+                                  <div>{job.weightages.responsibilities}%</div>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">
+                            Default (33/33/34)
+                          </span>
+                        )}
                       </TableCell>
+                      <TableCell>{formatDate(job.createdAt)}</TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -290,13 +396,16 @@ export default function JobsTablePage() {
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem>
-                              <Link href={`/jobsTable/edit/${job.id}`} className="flex items-center w-full">
+                              <Link
+                                href={`/jobsTable/edit/${job.id}`}
+                                className="flex items-center w-full"
+                              >
                                 <Pencil className="mr-2 h-4 w-4" />
                                 Edit Job
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
                               onClick={() => handleDeleteJob(job.id)}
                             >

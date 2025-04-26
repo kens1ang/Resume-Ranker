@@ -31,7 +31,12 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { generateInstitutionSummary } from "@/lib/openrouter";
+import {
+  calculateFusionScore,
+  bertLabelToText,
+  getFusionDisplayInfo,
+} from "@/lib/ranking";
+import { AlertTriangle } from "lucide-react";
 
 interface Job {
   id: string;
@@ -72,6 +77,11 @@ interface ResumeResult {
       responsibilities: number;
     };
   };
+  bertPrediction?: {
+    match: string;
+    probabilities: number[];
+    prediction_label: number;
+  } | null;
   createdAt: any;
   resumeFile?: {
     name: string;
@@ -90,12 +100,6 @@ export function EvalResult({
   onChangePosition,
   isLoading: externalLoading,
 }: EvalResultProps) {
-  const [institutionSummaries, setInstitutionSummaries] = useState<
-    Record<string, string>
-  >({});
-  const [loadingInstitutions, setLoadingInstitutions] = useState<
-    Record<string, boolean>
-  >({});
   const [results, setResults] = useState<ResumeResult[]>([]);
   const [internalLoading, setInternalLoading] = useState(true);
   const isLoading =
@@ -105,9 +109,11 @@ export function EvalResult({
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const db = getFirestore(app);
-  const [expandedResponsibilities, setExpandedResponsibilities] = useState<
-    Record<string, boolean>
-  >({});
+  const [bertPrediction, setBertPrediction] = useState<{
+    match: string;
+    probabilities: number[];
+    prediction_label: number;
+  } | null>(null);
 
   useEffect(() => {
     async function fetchResults() {
@@ -118,14 +124,65 @@ export function EvalResult({
       }
 
       try {
-        const resultsCollection = collection(db, "resumeSubmissions");
-        const resultsQuery = query(
-          resultsCollection,
-          where("jobId", "==", selectedJob.id),
-          orderBy("createdAt", "desc")
-        );
+        // Get the dynamic collection name
+        const getCollectionNameFromJobTitle = (jobTitle: string): string => {
+          const collectionName = jobTitle
+            .trim()
+            .replace(/[^\w\s]/gi, "")
+            .replace(/\s+(\w)/g, (_, letter) => letter.toUpperCase())
+            .replace(/\s/g, "");
+          return (
+            collectionName.charAt(0).toLowerCase() +
+            collectionName.slice(1) +
+            "Submissions"
+          );
+        };
 
-        const resultsSnapshot = await getDocs(resultsQuery);
+        const collectionName = getCollectionNameFromJobTitle(
+          selectedJob.jobTitle
+        );
+        console.log(`Fetching results from collection: ${collectionName}`);
+
+        // Try to fetch from job-specific collection first
+        let resultsCollection;
+        let resultsQuery;
+        let resultsSnapshot;
+
+        try {
+          resultsCollection = collection(db, collectionName);
+          resultsQuery = query(
+            resultsCollection,
+            where("jobId", "==", selectedJob.id),
+            orderBy("createdAt", "desc")
+          );
+          resultsSnapshot = await getDocs(resultsQuery);
+
+          // If no results in job-specific collection, fall back to main collection
+          if (resultsSnapshot.empty) {
+            console.log(
+              "No results in job-specific collection, checking resumeSubmissions"
+            );
+            resultsCollection = collection(db, "resumeSubmissions");
+            resultsQuery = query(
+              resultsCollection,
+              where("jobId", "==", selectedJob.id),
+              orderBy("createdAt", "desc")
+            );
+            resultsSnapshot = await getDocs(resultsQuery);
+          }
+        } catch (error) {
+          // If there's an error with the job-specific collection, fall back
+          console.warn(
+            `Error accessing ${collectionName}, falling back to resumeSubmissions`
+          );
+          resultsCollection = collection(db, "resumeSubmissions");
+          resultsQuery = query(
+            resultsCollection,
+            where("jobId", "==", selectedJob.id),
+            orderBy("createdAt", "desc")
+          );
+          resultsSnapshot = await getDocs(resultsQuery);
+        }
 
         if (resultsSnapshot.empty) {
           setResults([]);
@@ -152,6 +209,7 @@ export function EvalResult({
               },
               entityData: data.entityData || {},
               matchDetails: data.matchDetails || {},
+              bertPrediction: data.bertPrediction || null,
               createdAt: data.createdAt,
             };
           });
@@ -186,13 +244,6 @@ export function EvalResult({
 
   const toggleRowExpand = (id: string) => {
     setExpandedRows((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
-  const toggleResponsibilitiesView = (id: string) => {
-    setExpandedResponsibilities((prev) => ({
       ...prev,
       [id]: !prev[id],
     }));
@@ -237,40 +288,6 @@ export function EvalResult({
     if (score >= 0.7) return "text-green-600";
     if (score >= 0.5) return "text-yellow-600";
     return "text-red-600";
-  };
-
-  // Add this function inside your EvalResult component
-  const fetchInstitutionSummary = async (
-    resultId: string,
-    institutionName: string
-  ) => {
-    // Skip if we already have this summary
-    if (institutionSummaries[`${resultId}-${institutionName}`]) return;
-
-    // Set loading state
-    setLoadingInstitutions((prev) => ({
-      ...prev,
-      [`${resultId}-${institutionName}`]: true,
-    }));
-
-    try {
-      const summary = await generateInstitutionSummary(institutionName);
-
-      // Store the summary
-      setInstitutionSummaries((prev) => ({
-        ...prev,
-        [`${resultId}-${institutionName}`]: summary,
-      }));
-    } catch (error) {
-      console.error("Error fetching institution summary:", error);
-      // Handle error if needed
-    } finally {
-      // Clear loading state
-      setLoadingInstitutions((prev) => ({
-        ...prev,
-        [`${resultId}-${institutionName}`]: false,
-      }));
-    }
   };
 
   return (
@@ -522,55 +539,12 @@ export function EvalResult({
                                   ?.length > 0 &&
                                   result.entityData["Institution Name"].map(
                                     (institution, index) => (
-                                      <div key={index} className="text-sm mb-3">
+                                      <div key={index} className="text-sm">
                                         <div className="flex items-center gap-2 mb-1">
                                           <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
                                             Institution
                                           </Badge>
                                           {institution}
-                                        </div>
-
-                                        {/* Institution Summary Section */}
-                                        <div className="mt-1 pl-2 border-l-2 border-purple-200">
-                                          {institutionSummaries[
-                                            `${result.id}-${institution}`
-                                          ] ? (
-                                            <p className="text-xs text-muted-foreground">
-                                              {
-                                                institutionSummaries[
-                                                  `${result.id}-${institution}`
-                                                ]
-                                              }
-                                            </p>
-                                          ) : (
-                                            <div>
-                                              {loadingInstitutions[
-                                                `${result.id}-${institution}`
-                                              ] ? (
-                                                <div className="flex items-center gap-2 py-1">
-                                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                                  <span className="text-xs text-muted-foreground">
-                                                    Loading institution
-                                                    profile...
-                                                  </span>
-                                                </div>
-                                              ) : (
-                                                <Button
-                                                  variant="ghost"
-                                                  size="sm"
-                                                  className="text-xs h-6 px-2 mt-1"
-                                                  onClick={() =>
-                                                    fetchInstitutionSummary(
-                                                      result.id,
-                                                      institution
-                                                    )
-                                                  }
-                                                >
-                                                  Load institution information
-                                                </Button>
-                                              )}
-                                            </div>
-                                          )}
                                         </div>
                                       </div>
                                     )
@@ -599,11 +573,80 @@ export function EvalResult({
                                   </span>
                                 )}
                               </div>
+
+                              {(() => {
+                                const fusionResult = calculateFusionScore(
+                                  result.similarityScores.overall,
+                                  result.bertPrediction || null
+                                );
+                                const fusionInfo =
+                                  getFusionDisplayInfo(fusionResult);
+
+                                return (
+                                  <div className="space-y-3 mt-4">
+                                    <div className="flex justify-between items-center">
+                                      <span className="font-medium">
+                                        Fusion Score (AI Enhanced)
+                                      </span>
+                                      <span
+                                        className={getScoreColor(
+                                          fusionResult.fusionScore
+                                        )}
+                                      >
+                                        {formatPercentage(
+                                          fusionResult.fusionScore
+                                        )}
+                                        <span className="text-xs ml-2 text-muted-foreground">
+                                          (
+                                          {Math.round(
+                                            fusionResult.confidence * 100
+                                          )}
+                                          % confidence)
+                                        </span>
+                                      </span>
+                                    </div>
+
+                                    {/* Show the agreement level */}
+                                    <div className="text-xs text-muted-foreground flex items-center justify-between">
+                                      <span>
+                                        Agreement:{" "}
+                                        {fusionResult.agreementLevel
+                                          .charAt(0)
+                                          .toUpperCase() +
+                                          fusionResult.agreementLevel.slice(1)}
+                                      </span>
+                                      <span>
+                                        Semantic: {fusionInfo.weights.semantic}%
+                                        | Classification:{" "}
+                                        {fusionInfo.weights.classification}%
+                                      </span>
+                                    </div>
+
+                                    {/* Show edge case warnings if applicable */}
+                                    {fusionResult.edgeCase.isEdgeCase && (
+                                      <div className="bg-amber-50 border border-amber-200 rounded p-2 mt-2 flex items-start gap-2">
+                                        <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5" />
+                                        <div>
+                                          <p className="text-xs font-medium text-amber-800">
+                                            Review Recommended
+                                          </p>
+                                          <p className="text-xs text-amber-700">
+                                            {
+                                              fusionResult.edgeCase
+                                                .recommendedAction
+                                            }
+                                          </p>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             <div>
                               <h4 className="font-semibold mt-4 mb-2">
-                                Identified Responsibilities
+                                Identified Experiences
                                 <span className="ml-2 text-xs font-normal text-muted-foreground">
                                   (
                                   {result.entityData?.Responsibilities
@@ -628,7 +671,7 @@ export function EvalResult({
                                   </ol>
                                 ) : (
                                   <span className="text-sm text-muted-foreground">
-                                    No responsibilities identified
+                                    No experiences identified
                                   </span>
                                 )}
                               </div>
@@ -664,7 +707,7 @@ export function EvalResult({
                                   </div>
                                   <div>
                                     <span className="text-muted-foreground">
-                                      Responsibilities:
+                                      Experience:
                                     </span>{" "}
                                     <span className="font-medium">
                                       {result.matchDetails?.applied_weightages
