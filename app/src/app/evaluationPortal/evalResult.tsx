@@ -36,58 +36,16 @@ import {
   bertLabelToText,
   getFusionDisplayInfo,
 } from "@/lib/ranking";
-import { AlertTriangle } from "lucide-react";
-
-interface Job {
-  id: string;
-  jobTitle: string;
-  preferredDegree?: string;
-  requiredSkills?: string[];
-  preferredSkills?: string[];
-  responsibilities?: string[];
-  description?: string;
-  weightages?: {
-    skills: number;
-    education: number;
-    responsibilities: number;
-  };
-}
-
-interface ResumeResult {
-  id: string;
-  jobId: string;
-  jobTitle: string;
-  fileName: string;
-  candidateName: string;
-  similarity: number;
-  similarityScores: {
-    overall: number;
-    skills: number;
-    education: number;
-    job_title: number;
-    responsibilities: number;
-  };
-  entityData: {
-    [key: string]: string[];
-  };
-  matchDetails?: {
-    applied_weightages?: {
-      skills: number;
-      education: number;
-      responsibilities: number;
-    };
-  };
-  bertPrediction?: {
-    match: string;
-    probabilities: number[];
-    prediction_label: number;
-  } | null;
-  createdAt: any;
-  resumeFile?: {
-    name: string;
-    data: string | Blob;
-  };
-}
+import { ShapExplanation } from "@/components/xai/ShapExplanation";
+import { DecisionRules } from "@/components/xai/DecisionRules";
+import { ComparativeAnalysis } from "@/components/xai/ComparativeAnalysis";
+import {
+  calculateShapValues,
+  calculateAverageScores,
+  findTopScorer,
+} from "@/lib/explainability";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ResumeResult, Job } from "@/types/evaluation";
 
 interface EvalResultProps {
   selectedJob: Job;
@@ -104,7 +62,7 @@ export function EvalResult({
   const [internalLoading, setInternalLoading] = useState(true);
   const isLoading =
     externalLoading !== undefined ? externalLoading : internalLoading;
-  const [sortField, setSortField] = useState<string>("overall");
+  const [sortField, setSortField] = useState<string>("fusion");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
@@ -114,6 +72,10 @@ export function EvalResult({
     probabilities: number[];
     prediction_label: number;
   } | null>(null);
+  const [averageScores, setAverageScores] = useState<Record<string, number>>(
+    {}
+  );
+  const [topScorer, setTopScorer] = useState<ResumeResult | null>(null);
 
   useEffect(() => {
     async function fetchResults() {
@@ -231,7 +193,12 @@ export function EvalResult({
     }
 
     fetchResults();
-  }, [db, selectedJob, toast, externalLoading]);
+
+    if (results.length > 0) {
+      setAverageScores(calculateAverageScores(results));
+      setTopScorer(findTopScorer(results));
+    }
+  }, [db, selectedJob, toast, externalLoading, results]);
 
   const toggleSort = (field: string) => {
     if (sortField === field) {
@@ -254,6 +221,18 @@ export function EvalResult({
     let valB: number;
 
     switch (sortField) {
+      case "fusion":
+        const fusionA = calculateFusionScore(
+          a.similarityScores.overall,
+          a.bertPrediction || null
+        ).fusionScore;
+        const fusionB = calculateFusionScore(
+          b.similarityScores.overall,
+          b.bertPrediction || null
+        ).fusionScore;
+        valA = fusionA;
+        valB = fusionB;
+        break;
       case "skills":
         valA = a.similarityScores.skills;
         valB = b.similarityScores.skills;
@@ -272,8 +251,16 @@ export function EvalResult({
         break;
       case "overall":
       default:
-        valA = a.similarityScores.overall;
-        valB = b.similarityScores.overall;
+        const defaultFusionA = calculateFusionScore(
+          a.similarityScores.overall,
+          a.bertPrediction || null
+        ).fusionScore;
+        const defaultFusionB = calculateFusionScore(
+          b.similarityScores.overall,
+          b.bertPrediction || null
+        ).fusionScore;
+        valA = defaultFusionA;
+        valB = defaultFusionB;
         break;
     }
 
@@ -342,7 +329,12 @@ export function EvalResult({
                 <div className="text-2xl font-bold">
                   {formatPercentage(
                     results.reduce(
-                      (acc, r) => acc + r.similarityScores.overall,
+                      (acc, r) =>
+                        acc +
+                        calculateFusionScore(
+                          r.similarityScores.overall,
+                          r.bertPrediction || null
+                        ).fusionScore,
                       0
                     ) / results.length
                   )}
@@ -354,7 +346,15 @@ export function EvalResult({
                 </div>
                 <div className="text-2xl font-bold text-green-600">
                   {formatPercentage(
-                    Math.max(...results.map((r) => r.similarityScores.overall))
+                    Math.max(
+                      ...results.map(
+                        (r) =>
+                          calculateFusionScore(
+                            r.similarityScores.overall,
+                            r.bertPrediction || null
+                          ).fusionScore
+                      )
+                    )
                   )}
                 </div>
               </div>
@@ -432,17 +432,27 @@ export function EvalResult({
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
-                          <div
-                            className={`font-bold ${getScoreColor(
-                              result.similarityScores.overall
-                            )}`}
-                          >
-                            {formatPercentage(result.similarityScores.overall)}
-                          </div>
-                          <Progress
-                            value={result.similarityScores.overall * 100}
-                            className="h-2"
-                          />
+                          {(() => {
+                            const fusionResult = calculateFusionScore(
+                              result.similarityScores.overall,
+                              result.bertPrediction || null
+                            );
+                            return (
+                              <>
+                                <div
+                                  className={`font-bold ${getScoreColor(
+                                    fusionResult.fusionScore
+                                  )}`}
+                                >
+                                  {formatPercentage(fusionResult.fusionScore)}
+                                </div>
+                                <Progress
+                                  value={fusionResult.fusionScore * 100}
+                                  className="h-2"
+                                />
+                              </>
+                            );
+                          })()}
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
@@ -494,253 +504,219 @@ export function EvalResult({
                           colSpan={6}
                           className="px-4 py-4 bg-slate-50"
                         >
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                              <h4 className="font-semibold mb-2">
-                                Identified Skills
+                          <Tabs defaultValue="details" className="w-full">
+                            <div className="flex justify-between items-center mb-4">
+                              <h4 className="font-semibold">
+                                Candidate Details
                               </h4>
-                              <div className="flex flex-wrap gap-2">
-                                {result.entityData?.Skills?.length > 0 ? (
-                                  result.entityData.Skills.map(
-                                    (skill, index) => (
-                                      <Badge key={index} variant="outline">
-                                        {skill}
-                                      </Badge>
-                                    )
-                                  )
-                                ) : (
-                                  <span className="text-sm text-muted-foreground">
-                                    No skills identified
-                                  </span>
-                                )}
-                              </div>
-
-                              <h4 className="font-semibold mt-4 mb-2">
-                                Identified Education
-                              </h4>
-                              <div className="flex flex-col gap-2">
-                                {result.entityData?.Degree?.length > 0 ? (
-                                  result.entityData.Degree.map(
-                                    (degree, index) => (
-                                      <div key={index} className="text-sm">
-                                        <Badge className="mr-2 bg-blue-100 text-blue-800 hover:bg-blue-100">
-                                          Degree
-                                        </Badge>
-                                        {degree}
-                                      </div>
-                                    )
-                                  )
-                                ) : (
-                                  <span className="text-sm text-muted-foreground">
-                                    No education identified
-                                  </span>
-                                )}
-                                {result.entityData?.["Institution Name"]
-                                  ?.length > 0 &&
-                                  result.entityData["Institution Name"].map(
-                                    (institution, index) => (
-                                      <div key={index} className="text-sm">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
-                                            Institution
-                                          </Badge>
-                                          {institution}
-                                        </div>
-                                      </div>
-                                    )
-                                  )}
-                              </div>
-
-                              <h4 className="font-semibold mt-4 mb-2">
-                                Identified Certifications
-                              </h4>
-                              <div className="flex flex-col gap-2">
-                                {result.entityData?.Certifications?.length >
-                                0 ? (
-                                  result.entityData.Certifications.map(
-                                    (cert, index) => (
-                                      <div key={index} className="text-sm">
-                                        <Badge className="mr-2 bg-indigo-100 text-indigo-800 hover:bg-indigo-100">
-                                          Certification
-                                        </Badge>
-                                        {cert}
-                                      </div>
-                                    )
-                                  )
-                                ) : (
-                                  <span className="text-sm text-muted-foreground">
-                                    No certifications identified
-                                  </span>
-                                )}
-                              </div>
-
-                              {(() => {
-                                const fusionResult = calculateFusionScore(
-                                  result.similarityScores.overall,
-                                  result.bertPrediction || null
-                                );
-                                const fusionInfo =
-                                  getFusionDisplayInfo(fusionResult);
-
-                                return (
-                                  <div className="space-y-3 mt-4">
-                                    <div className="flex justify-between items-center">
-                                      <span className="font-medium">
-                                        Fusion Score (AI Enhanced)
-                                      </span>
-                                      <span
-                                        className={getScoreColor(
-                                          fusionResult.fusionScore
-                                        )}
-                                      >
-                                        {formatPercentage(
-                                          fusionResult.fusionScore
-                                        )}
-                                        <span className="text-xs ml-2 text-muted-foreground">
-                                          (
-                                          {Math.round(
-                                            fusionResult.confidence * 100
-                                          )}
-                                          % confidence)
-                                        </span>
-                                      </span>
-                                    </div>
-
-                                    {/* Show the agreement level */}
-                                    <div className="text-xs text-muted-foreground flex items-center justify-between">
-                                      <span>
-                                        Agreement:{" "}
-                                        {fusionResult.agreementLevel
-                                          .charAt(0)
-                                          .toUpperCase() +
-                                          fusionResult.agreementLevel.slice(1)}
-                                      </span>
-                                      <span>
-                                        Semantic: {fusionInfo.weights.semantic}%
-                                        | Classification:{" "}
-                                        {fusionInfo.weights.classification}%
-                                      </span>
-                                    </div>
-
-                                    {/* Show edge case warnings if applicable */}
-                                    {fusionResult.edgeCase.isEdgeCase && (
-                                      <div className="bg-amber-50 border border-amber-200 rounded p-2 mt-2 flex items-start gap-2">
-                                        <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5" />
-                                        <div>
-                                          <p className="text-xs font-medium text-amber-800">
-                                            Review Recommended
-                                          </p>
-                                          <p className="text-xs text-amber-700">
-                                            {
-                                              fusionResult.edgeCase
-                                                .recommendedAction
-                                            }
-                                          </p>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })()}
+                              <TabsList>
+                                <TabsTrigger value="details">
+                                  Identified Data
+                                </TabsTrigger>
+                                <TabsTrigger value="ai-explanations">
+                                  AI Explanations
+                                </TabsTrigger>
+                              </TabsList>
                             </div>
 
-                            <div>
-                              <h4 className="font-semibold mt-4 mb-2">
-                                Identified Experiences
-                                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                  (
-                                  {result.entityData?.Responsibilities
-                                    ?.length || 0}{" "}
-                                  found)
-                                </span>
-                              </h4>
-                              <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto bg-white p-3 rounded-md border">
-                                {result.entityData?.Responsibilities?.length >
-                                0 ? (
-                                  <ol className="list-decimal pl-5 space-y-2">
-                                    {result.entityData.Responsibilities.map(
-                                      (resp, index) => (
-                                        <li
-                                          key={index}
-                                          className="text-sm text-gray-800"
-                                        >
-                                          <span>{resp}</span>
-                                        </li>
+                            <TabsContent value="details" className="mt-0">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                  <h4 className="font-semibold mb-2">
+                                    Identified Skills
+                                  </h4>
+                                  <div className="flex flex-wrap gap-2">
+                                    {result.entityData?.Skills?.length > 0 ? (
+                                      result.entityData.Skills.map(
+                                        (skill, index) => (
+                                          <Badge key={index} variant="outline">
+                                            {skill}
+                                          </Badge>
+                                        )
                                       )
+                                    ) : (
+                                      <span className="text-sm text-muted-foreground">
+                                        No skills identified
+                                      </span>
                                     )}
-                                  </ol>
-                                ) : (
-                                  <span className="text-sm text-muted-foreground">
-                                    No experiences identified
-                                  </span>
-                                )}
-                              </div>
-
-                              <h4 className="font-semibold mt-4 mb-2">
-                                Detailed Match Scores
-                              </h4>
-
-                              <div className="bg-slate-100 p-3 rounded-md mb-3">
-                                <h5 className="text-sm font-medium mb-2">
-                                  Applied Weightages:
-                                </h5>
-                                <div className="grid grid-cols-3 gap-2 text-sm">
-                                  <div>
-                                    <span className="text-muted-foreground">
-                                      Skills:
-                                    </span>{" "}
-                                    <span className="font-medium">
-                                      {result.matchDetails?.applied_weightages
-                                        ?.skills || 33}
-                                      %
-                                    </span>
                                   </div>
-                                  <div>
-                                    <span className="text-muted-foreground">
-                                      Education:
-                                    </span>{" "}
-                                    <span className="font-medium">
-                                      {result.matchDetails?.applied_weightages
-                                        ?.education || 33}
-                                      %
-                                    </span>
+
+                                  <h4 className="font-semibold mt-4 mb-2">
+                                    Identified Education
+                                  </h4>
+                                  <div className="flex flex-col gap-2">
+                                    {result.entityData?.Degree?.length > 0 ? (
+                                      result.entityData.Degree.map(
+                                        (degree, index) => (
+                                          <div key={index} className="text-sm">
+                                            <Badge className="mr-2 bg-blue-100 text-blue-800 hover:bg-blue-100">
+                                              Degree
+                                            </Badge>
+                                            {degree}
+                                          </div>
+                                        )
+                                      )
+                                    ) : (
+                                      <span className="text-sm text-muted-foreground">
+                                        No education identified
+                                      </span>
+                                    )}
+                                    {result.entityData?.["Institution Name"]
+                                      ?.length > 0 &&
+                                      result.entityData["Institution Name"].map(
+                                        (institution, index) => (
+                                          <div key={index} className="text-sm">
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
+                                                Institution
+                                              </Badge>
+                                              {institution}
+                                            </div>
+                                          </div>
+                                        )
+                                      )}
                                   </div>
-                                  <div>
-                                    <span className="text-muted-foreground">
-                                      Experience:
-                                    </span>{" "}
-                                    <span className="font-medium">
-                                      {result.matchDetails?.applied_weightages
-                                        ?.responsibilities || 34}
-                                      %
+
+                                  <h4 className="font-semibold mt-4 mb-2">
+                                    Identified Certifications
+                                  </h4>
+                                  <div className="flex flex-col gap-2">
+                                    {result.entityData?.Certifications?.length >
+                                    0 ? (
+                                      result.entityData.Certifications.map(
+                                        (cert, index) => (
+                                          <div key={index} className="text-sm">
+                                            <Badge className="mr-2 bg-indigo-100 text-indigo-800 hover:bg-indigo-100">
+                                              Certification
+                                            </Badge>
+                                            {cert}
+                                          </div>
+                                        )
+                                      )
+                                    ) : (
+                                      <span className="text-sm text-muted-foreground">
+                                        No certifications identified
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <h4 className="font-semibold mt-4 mb-2">
+                                    Identified Experiences
+                                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                      (
+                                      {result.entityData?.Responsibilities
+                                        ?.length || 0}{" "}
+                                      found)
                                     </span>
+                                  </h4>
+                                  <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto bg-white p-3 rounded-md border">
+                                    {result.entityData?.Responsibilities
+                                      ?.length > 0 ? (
+                                      <ol className="list-decimal pl-5 space-y-2">
+                                        {result.entityData.Responsibilities.map(
+                                          (resp, index) => (
+                                            <li
+                                              key={index}
+                                              className="text-sm text-gray-800"
+                                            >
+                                              <span>{resp}</span>
+                                            </li>
+                                          )
+                                        )}
+                                      </ol>
+                                    ) : (
+                                      <span className="text-sm text-muted-foreground">
+                                        No experiences identified
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <h4 className="font-semibold mt-4 mb-2">
+                                    Detailed Match Scores
+                                  </h4>
+
+                                  <div className="space-y-3">
+                                    {Object.entries(result.similarityScores)
+                                      .filter(([key]) => key !== "overall")
+                                      // Sort by score value in descending order
+                                      .sort(
+                                        ([, valueA], [, valueB]) =>
+                                          valueB - valueA
+                                      )
+                                      .map(([key, value]) => (
+                                        <div key={key}>
+                                          <div className="flex justify-between text-sm mb-1">
+                                            <span>
+                                              {key === "responsibilities"
+                                                ? "Experiences"
+                                                : key.charAt(0).toUpperCase() +
+                                                  key
+                                                    .slice(1)
+                                                    .replace("_", " ")}
+                                            </span>
+                                            <span
+                                              className={getScoreColor(value)}
+                                            >
+                                              {formatPercentage(value)}
+                                            </span>
+                                          </div>
+                                          <Progress
+                                            value={value * 100}
+                                            className="h-2"
+                                          />
+                                        </div>
+                                      ))}
                                   </div>
                                 </div>
                               </div>
+                            </TabsContent>
 
-                              <div className="space-y-3">
-                                {Object.entries(result.similarityScores).map(
-                                  ([key, value]) => (
-                                    <div key={key}>
-                                      <div className="flex justify-between text-sm mb-1">
-                                        <span>
-                                          {key.charAt(0).toUpperCase() +
-                                            key.slice(1).replace("_", " ")}
-                                        </span>
-                                        <span className={getScoreColor(value)}>
-                                          {formatPercentage(value)}
-                                        </span>
-                                      </div>
-                                      <Progress
-                                        value={value * 100}
-                                        className="h-2"
-                                      />
-                                    </div>
-                                  )
+                            <TabsContent
+                              value="ai-explanations"
+                              className="mt-0"
+                            >
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* SHAP explanation */}
+                                <ShapExplanation
+                                  {...calculateShapValues(result)}
+                                />
+
+                                {/* Decision Rules */}
+                                <DecisionRules
+                                  fusionResult={calculateFusionScore(
+                                    result.similarityScores.overall,
+                                    result.bertPrediction || null
+                                  )}
+                                  semanticScore={
+                                    result.similarityScores.overall
+                                  }
+                                  bertLabel={
+                                    result.bertPrediction?.prediction_label
+                                  }
+                                  bertLabelText={
+                                    result.bertPrediction
+                                      ? bertLabelToText(
+                                          result.bertPrediction.prediction_label
+                                        )
+                                      : undefined
+                                  }
+                                />
+
+                                {/* Comparative Analysis */}
+                                {topScorer && (
+                                  <div className="col-span-1 lg:col-span-2">
+                                    <ComparativeAnalysis
+                                      currentScore={result.similarityScores}
+                                      topScore={topScorer.similarityScores}
+                                      avgScore={averageScores}
+                                    />
+                                  </div>
                                 )}
                               </div>
-                            </div>
-                          </div>
+                            </TabsContent>
+                          </Tabs>
                         </TableCell>
                       </TableRow>
                     )}
