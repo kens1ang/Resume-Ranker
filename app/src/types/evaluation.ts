@@ -30,12 +30,16 @@ export interface ResumeResult {
     match: string;
     probabilities: number[];
     prediction_label: number;
+    manually_updated?: boolean;
+    updated_at?: Date;
+    original_prediction?: number;
   } | null;
   createdAt: any;
   resumeFile?: {
     name: string;
     data: string | Blob;
   };
+  extractedText?: string;
 }
 
 export interface Job {
