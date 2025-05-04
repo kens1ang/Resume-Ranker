@@ -58,6 +58,18 @@ Resume Ranker is an intelligent recruitment automation platform that leverages a
 
 ---
 
+## 📦 Resources and Downloads
+
+### 🔗 Models
+- [Resume–Job Fit Classifier (FinBERT)](https://huggingface.co/kens1ang/resume-job-fit-FinBERT)
+- [Resume Entity Extractor (DeBERTa-v3-small)](https://huggingface.co/kens1ang/resume-parser-DeBERTa-V3-small)
+
+### 🧠 Datasets
+- [Resume–Job Fit Dataset (Augmented)](https://huggingface.co/datasets/kens1ang/resume-job-fit-augmented)
+- [Resume NER Labeled Dataset](https://huggingface.co/datasets/kens1ang/resume-ner-labelled)
+
+---
+
 ## 📦 Getting Started
 
 ### ✅ Prerequisites
