@@ -147,7 +147,7 @@ export function ResultsTableRow({
 
       {isExpanded && (
         <TableRow>
-          <TableCell colSpan={6} className="px-4 py-4 bg-slate-50">
+          <TableCell colSpan={7} className="px-4 py-4 bg-slate-50">
             <Tabs defaultValue="details" className="w-full">
               <div className="flex justify-between items-center mb-4">
                 <h4 className="font-semibold">Candidate Details</h4>
