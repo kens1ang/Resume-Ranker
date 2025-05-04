@@ -53,7 +53,7 @@ Resume Ranker is an intelligent recruitment automation platform that leverages a
 - **NLP Pipelines**:
   - Semantic Similarity: `all-MiniLM-L6-v2` via SentenceTransformers
   - Fit Classification: `ProsusAI/FinBERT` fine-tuned on resume–job pairs
-  - Resume Summarization & Annotation: OpenRouter API using DeepSeek Chat
+  - Resume Parsing: OpenRouter API using DeepSeek V3 and fine-tuned NER model (DeBERTa-V3-small)
 - **PDF Parsing**: PyPDF2 + custom text extraction and filtering
 
 ---
